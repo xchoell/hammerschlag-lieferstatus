@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 460" role="img" aria-label="Hammerschlag GmbH">
+  <rect x="0" y="0" width="1000" height="460" rx="48" fill="#1b1b1b"/>
+
+  <!-- Farbrollen-Icon -->
+  <line x1="272" y1="210" x2="188" y2="356" stroke="#9b9b9b" stroke-width="34" stroke-linecap="round"/>
+  <rect x="250" y="150" width="170" height="70" rx="16" fill="#e9e7e2"/>
+  <path d="M380 150 H406 a14 14 0 0 1 14 14 V206 a14 14 0 0 1 -14 14 H380 Z" fill="#c1271e"/>
+
+  <!-- roter Trenner -->
+  <line x1="470" y1="120" x2="470" y2="342" stroke="#c1271e" stroke-width="8"/>
+
+  <!-- Wortmarke -->
+  <g fill="#f3f1ec" font-family="Georgia, 'Times New Roman', Times, serif" font-weight="700" letter-spacing="2">
+    <text x="508" y="210" font-size="94">HAMMER</text>
+    <text x="508" y="318" font-size="94">SCHLAG</text>
+  </g>
+  <text x="512" y="378" fill="#8f8d88" font-family="Arial, Helvetica, sans-serif" font-size="40" letter-spacing="12">GmbH</text>
+</svg>

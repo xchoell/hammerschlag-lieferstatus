@@ -29,6 +29,8 @@ export const config = {
     name: process.env.BRAND_NAME || 'Sendungsverfolgung',
     supportEmail: process.env.BRAND_SUPPORT_EMAIL || '',
     color: process.env.BRAND_COLOR || '#1a1a1a',
+    // Pfad/URL zum Logo. Leer lassen -> Fallback auf Buchstaben-Kachel.
+    logoUrl: process.env.BRAND_LOGO_URL ?? '/logo.svg',
   },
 };
 

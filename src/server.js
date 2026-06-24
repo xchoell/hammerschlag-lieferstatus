@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -7,9 +9,14 @@ import { renderForm, renderResult, renderNotFound } from './views.js';
 
 assertConfig();
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const app = express();
 app.disable('x-powered-by');
 if (config.trustProxy) app.set('trust proxy', 1); // hinter Reverse-Proxy auf dem VPS
+
+// Statische Assets (Logo etc.) aus public/
+app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h' }));
 
 // Security-Header. CSP bewusst eng: nur inline-CSS (eigene <style>), keine externen Skripte.
 app.use(

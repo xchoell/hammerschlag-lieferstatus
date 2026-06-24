@@ -33,8 +33,11 @@ function layout(title, body) {
   .wrap { max-width: 420px; margin: 0 auto; padding: 24px 16px 48px; }
   .card { background: #fff; border: 1px solid #e5e5e5; border-radius: 16px; overflow: hidden; }
   .head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid #eee; }
+  .head--logo { flex-direction: column; align-items: flex-start; gap: 8px; }
   .logo { width: 32px; height: 32px; border-radius: 8px; background: var(--accent); color: #fff;
     display: flex; align-items: center; justify-content: center; font-weight: 600; }
+  .logo-img { height: 58px; width: auto; display: block; }
+  .head-sub { font-size: 12px; color: #6b7280; }
   .head b { font-size: 14px; display: block; }
   .head span { font-size: 12px; color: #6b7280; }
   .body { padding: 20px 18px; }
@@ -81,9 +84,10 @@ function layout(title, body) {
 <body>
   <div class="wrap">
     <div class="card">
-      <div class="head">
-        <div class="logo">${esc(brand.name.charAt(0))}</div>
-        <div><b>${esc(brand.name)}</b><span>Sendungsverfolgung</span></div>
+      <div class="head${brand.logoUrl ? ' head--logo' : ''}">
+        ${brand.logoUrl
+          ? `<img class="logo-img" src="${esc(brand.logoUrl)}" alt="${esc(brand.name)}" /><span class="head-sub">Sendungsverfolgung</span>`
+          : `<div class="logo">${esc(brand.name.charAt(0))}</div><div><b>${esc(brand.name)}</b><span>Sendungsverfolgung</span></div>`}
       </div>
       <div class="body">${body}</div>
     </div>
