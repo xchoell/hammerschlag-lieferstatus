@@ -16,6 +16,8 @@ Browser (public, kein Login)
   (dieses Repo)                            /api/v3/salesOrders
   Rate-Limit, equals-only,                 /api/v3/deliveryNotes
   generische Fehler, keine PII             /api/v1/deliveryNotes/{id}/shipments
+        │
+        └── DHL-API-Key ──►  DHL Tracking API (Zustellstatus "Zugestellt")
 ```
 
 ## Schnellstart (lokal, ohne Token)
@@ -91,11 +93,32 @@ PLZ-verifizierter Treffer gewinnt.
 | Auftrag erhalten | Auftrag existiert |
 | Auftrag wird gepackt | Lieferschein existiert, noch kein Tracking |
 | Versendet | Sendung mit Tracking vorhanden |
-| Zugestellt | explizites Liefer-/Abschlusssignal **und** Tracking |
+| Zugestellt | **vom Carrier bestätigt** (siehe unten) |
 
-Die Stufe „Zugestellt" ist **bewusst konservativ**: Die API liefert keine garantierte
-Zustell-Bestätigung – die taggenaue Live-Verfolgung passiert beim Carrier (Tracking-Button).
-Wir behaupten daher keine Zustellung ohne klares Signal.
+„Zugestellt" wird **nicht** aus dem ERP-Status geraten, sondern **direkt beim
+Versanddienstleister abgefragt**. Ohne Carrier-Bestätigung bleibt der Status
+„Versendet" – wir behaupten keine Zustellung ohne Beleg.
+
+### Carrier-Tracking (Zustellstatus)
+
+| Carrier | Status |
+|---|---|
+| DHL | live angebunden (Shipment Tracking – Unified API) |
+| DPD, GLS, UPS, Hermes … | als Stub vorgesehen, liefert „unbekannt" → Status bleibt „Versendet" |
+
+- **DHL:** `GET https://api-eu.dhl.com/track/shipments`, Header `DHL-API-Key`,
+  Zustellung aus `shipments[0].status.statusCode = delivered` (+ `timestamp` als
+  „Zugestellt am"). Die Liefer-PLZ wird als `recipientPostalCode` mitgegeben
+  (bessere Detailtiefe bei DE-Paketen). Key holen unter
+  [developer.dhl.com](https://developer.dhl.com) und in `DHL_API_KEY` setzen.
+  Free-Tier: 250 Calls/Tag, 1 Call/5s → Antworten werden gecacht (`DHL_CACHE_TTL_MS`).
+- **Andere Carrier** (`detectCarrier` in [`src/carriers.js`](src/carriers.js)) liefern
+  bis zur Anbindung `delivered: null` → die Sendung bleibt sichtbar als „Versendet"
+  mit Tracking-Button, nur die Zustellung wird nicht behauptet.
+- **Demo ohne Key:** `DELIVERED_FALLBACK_ON_ORDER_STATUS=true` leitet „Zugestellt"
+  ersatzweise aus dem ERP-Status (`completed`) ab. Im echten Betrieb aus lassen.
+- **Verifizieren:** `node scripts/dhl-test.mjs <trackingNumber> [plz]` zeigt die
+  DHL-Rohantwort und die App-Interpretation.
 
 ## Sicherheit & Datenschutz
 
@@ -125,12 +148,17 @@ Die Seite ist öffentlich und ohne Login – daher fest eingebaut:
 
 ```
 src/
-  server.js     Express-App: Routen, Rate-Limit, Security-Header, generische Fehler
+  server.js     Express-App: Routen, Rate-Limit, Security-Header, statische Assets
   config.js     .env-Laden + Validierung
-  xentral.js    API-Client (Auth, Endpoints) + tolerante Feld-Getter
+  xentral.js    Xentral-API-Client (Auth, Endpoints) + tolerante Feld-Getter
+  carriers.js   Carrier-Abstraktion: Zustellstatus (DHL live, DPD/… Stubs)
   lookup.js     Multi-Identifier-Auflösung, PLZ-Prüfung, Statuslogik
   views.js      HTML/CSS (Eingabe, Ergebnis, Nicht-gefunden) – mobile-first
   mock.js       Demo-Daten für USE_MOCK
+public/
+  logo.svg      Header-Logo (austauschbar, BRAND_LOGO_URL)
 scripts/
-  probe.js      Echte API-Responses dumpen, um Feld-Mapping zu verifizieren
+  probe.js      Xentral-API-Responses dumpen (Feld-Mapping verifizieren)
+  samples.mjs   Echte Demo-Lookups (Nummer+PLZ) aus der Instanz ziehen
+  dhl-test.mjs  DHL-Tracking gegen eine Sendungsnummer testen
 ```

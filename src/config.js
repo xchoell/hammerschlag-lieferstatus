@@ -32,6 +32,15 @@ export const config = {
     // Pfad/URL zum Logo. Leer lassen -> Fallback auf Buchstaben-Kachel.
     logoUrl: process.env.BRAND_LOGO_URL ?? '/logo.svg',
   },
+  // DHL Shipment Tracking - Unified API (developer.dhl.com).
+  dhl: {
+    apiKey: process.env.DHL_API_KEY || '',
+    service: process.env.DHL_SERVICE || 'parcel-de',
+    cacheTtlMs: int(process.env.DHL_CACHE_TTL_MS, 600_000),
+  },
+  // "Zugestellt" wird per Carrier-API bestimmt. Optionaler Fallback auf den
+  // ERP-Auftragsstatus, NUR wenn der Carrier nicht abfragbar ist (Default aus).
+  deliveredFallbackOnOrderStatus: bool(process.env.DELIVERED_FALLBACK_ON_ORDER_STATUS, false),
 };
 
 // Beim echten Betrieb (kein Mock) müssen Basis-URL und Token gesetzt sein.

@@ -6,6 +6,7 @@ import {
   f,
 } from './xentral.js';
 import { config } from './config.js';
+import { getCarrierDeliveryState } from './carriers.js';
 import { mockLookup } from './mock.js';
 
 // Die vier Kunden-Stufen, die auf der Seite angezeigt werden.
@@ -123,6 +124,7 @@ async function assembleStatus(candidate, zip) {
       packageCount += 1 + extras;
       shipments.push({
         carrier: prettyCarrier(f.carrier(s)),
+        carrierCode: f.carrier(s) || null,
         trackingNumber: f.trackingNumber(s) || null,
         trackingLink: f.trackingLink(s) || null,
         shippedAt: f.shippedAt(s) || null,
@@ -133,20 +135,39 @@ async function assembleStatus(candidate, zip) {
   const hasTracking = shipments.some((s) => s.trackingNumber || s.trackingLink);
   const anyNoteSent = notes.some((n) => /sent|versendet|shipped/.test(String(f.status(n) || '').toLowerCase()));
   const shipped = hasTracking || anyNoteSent;
-  const orderStatus = String(f.status(order) || f.status(record) || '').toLowerCase();
-  const delivered = /deliver|zugestellt|abgeschlossen|completed|closed/.test(orderStatus);
 
-  // Stufen-Logik (bewusst konservativ, siehe README):
-  let stage = 0; // Bestellung erhalten
-  if (notes.length > 0) stage = 1; // Lieferschein existiert -> Kommissionierung
+  // Zustellung DIREKT beim Carrier abfragen (DHL live; andere -> unbekannt).
+  const states = await Promise.all(
+    shipments.map((s) =>
+      s.trackingNumber
+        ? getCarrierDeliveryState({ carrierCode: s.carrierCode, trackingNumber: s.trackingNumber, zip })
+        : Promise.resolve({ delivered: null }),
+    ),
+  );
+  const known = states.filter((st) => st && st.delivered !== null);
+  let delivered = known.length > 0 && known.every((st) => st.delivered === true);
+  const deliveredAt = states.find((st) => st && st.deliveredAt)?.deliveredAt || null;
+
+  // Optionaler Fallback auf den ERP-Status, NUR wenn kein Carrier abfragbar war.
+  if (!delivered && known.length === 0 && config.deliveredFallbackOnOrderStatus) {
+    const orderStatus = String(f.status(order) || f.status(record) || '').toLowerCase();
+    delivered = shipped && /deliver|zugestellt|abgeschlossen|completed|closed/.test(orderStatus);
+  }
+
+  let stage = 0; // Auftrag erhalten
+  if (notes.length > 0) stage = 1; // Lieferschein existiert -> wird gepackt
   if (shipped) stage = 2; // versendet / Tracking vorhanden -> Versendet
-  if (delivered && shipped) stage = 3; // explizites Signal -> Zugestellt
+  if (delivered && shipped) stage = 3; // Carrier bestätigt -> Zugestellt
+
+  // Liefertag: bei Zustellung das Carrier-Datum, sonst der geplante Liefertag.
+  const deliveryDate =
+    delivered && deliveredAt ? deliveredAt : f.deliveryDate(order) || f.deliveryDate(record) || null;
 
   return {
     orderNumber: f.documentNumber(order || record) || '',
     stage,
     stageLabel: STAGES[stage],
-    deliveryDate: f.deliveryDate(order) || f.deliveryDate(record) || null,
+    deliveryDate,
     packageCount: packageCount || shipments.length,
     shipments,
   };
