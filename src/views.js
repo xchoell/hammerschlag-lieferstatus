@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { STAGES } from './lookup.js';
+import { STAGES, CANCELLED_STAGES } from './lookup.js';
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -76,6 +76,8 @@ function layout(title, body) {
   .current .txt b { color: var(--accent); }
   .todo .bullet { background: #fff; border: 2px solid #d1d5db; } .todo .line { background: #e5e7eb; }
   .todo .txt b { color: #9ca3af; font-weight: 400; }
+  .cancelled .bullet { background: #dc2626; } .cancelled .line { background: #dc2626; }
+  .cancelled .txt b { color: #dc2626; }
   .eta { background: #f9fafb; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
   .eta small { color: #6b7280; font-size: 11px; display: block; }
   .eta b { font-size: 15px; }
@@ -138,7 +140,53 @@ export function renderNotFound() {
   );
 }
 
+function greetingHtml(name) {
+  return name
+    ? `<p style="font-size:16px;font-weight:500;margin:0 0 10px;">Hallo ${esc(name)}</p>`
+    : '';
+}
+
+function addressHtml(a) {
+  if (!a) return '';
+  return `<div class="eta"><small>Lieferadresse</small>${[
+    a.name,
+    a.contactPerson && a.contactPerson !== a.name ? a.contactPerson : null,
+    a.street,
+    [a.zipCode, a.city].filter(Boolean).join(' '),
+  ]
+    .filter(Boolean)
+    .map((line) => `<div style="font-size:14px;line-height:1.4;">${esc(line)}</div>`)
+    .join('')}</div>`;
+}
+
+// Stornierte Aufträge: eigener 2-Stufen-Verlauf, kein ETA/Tracking.
+function renderCancelled(s) {
+  const stepsHtml = CANCELLED_STAGES.map((name, i) => {
+    const isLast = i === CANCELLED_STAGES.length - 1;
+    const cls = i === 0 ? 'done' : 'cancelled';
+    const bullet = i === 0 ? '✓' : '✕';
+    return `<div class="step ${cls}">
+      <div class="rail"><div class="bullet">${bullet}</div>${isLast ? '' : '<div class="line"></div>'}</div>
+      <div class="txt"><b>${esc(name)}</b></div>
+    </div>`;
+  }).join('');
+
+  return layout(
+    `Bestellung ${s.orderNumber}`,
+    `
+    ${greetingHtml(s.recipientName)}
+    <p class="sub">Bestellung ${esc(s.orderNumber)}</p>
+    <div class="statusline"><span class="dot">🚫</span><b>Auftrag storniert</b></div>
+    <div class="steps">${stepsHtml}</div>
+    <div class="err">Dieser Auftrag wurde storniert. Bei Fragen wende dich bitte an deinen Ansprechpartner${brand.supportEmail ? ` (${esc(brand.supportEmail)})` : ''}.</div>
+    ${addressHtml(s.deliveryAddress)}
+    <a class="back" href="/">← Andere Bestellung suchen</a>`,
+  );
+}
+
 export function renderResult(s) {
+  if (s.cancelled) return renderCancelled(s);
+
   const stepsHtml = STAGES.map((name, i) => {
     const isLast = i === STAGES.length - 1;
     // Die erreichte Endstufe (Zugestellt) gilt als abgeschlossen -> Haken, nicht "aktuell".
@@ -173,32 +221,15 @@ export function renderResult(s) {
 
   const icon = s.stage === 3 ? '📦' : s.stage === 2 ? '🚚' : '🛠️';
 
-  const greeting = s.recipientName
-    ? `<p style="font-size:16px;font-weight:500;margin:0 0 10px;">Hallo ${esc(s.recipientName)}</p>`
-    : '';
-
-  const a = s.deliveryAddress;
-  const addr = a
-    ? `<div class="eta"><small>Lieferadresse</small>${[
-        a.name,
-        a.contactPerson && a.contactPerson !== a.name ? a.contactPerson : null,
-        a.street,
-        [a.zipCode, a.city].filter(Boolean).join(' '),
-      ]
-        .filter(Boolean)
-        .map((line) => `<div style="font-size:14px;line-height:1.4;">${esc(line)}</div>`)
-        .join('')}</div>`
-    : '';
-
   return layout(
     `Bestellung ${s.orderNumber}`,
     `
-    ${greeting}
+    ${greetingHtml(s.recipientName)}
     <p class="sub">Bestellung ${esc(s.orderNumber)}</p>
     <div class="statusline"><span class="dot">${icon}</span><b>${esc(STAGES[s.stage] ?? s.stageLabel)}</b></div>
     <div class="steps">${stepsHtml}</div>
     ${eta}
-    ${addr}
+    ${addressHtml(s.deliveryAddress)}
     ${tracking}
     <a class="back" href="/">← Andere Bestellung suchen</a>`,
   );

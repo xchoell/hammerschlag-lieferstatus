@@ -66,6 +66,21 @@ const ORDERS = [
       ],
     },
   },
+  {
+    aliases: ['AU-20333', '20333', 'LS-19950'],
+    zip: '70173',
+    data: {
+      orderNumber: 'AU-20333',
+      recipientName: 'Clara Klinke',
+      deliveryAddress: { name: 'Klinke Sanitär', contactPerson: 'Clara Klinke', street: 'Königstraße 1', zipCode: '70173', city: 'Stuttgart', country: 'DE' },
+      cancelled: true,
+      stage: 0,
+      stageLabel: 'Auftrag storniert',
+      deliveryDate: null,
+      packageCount: 0,
+      shipments: [],
+    },
+  },
 ];
 
 const norm = (v) => String(v ?? '').trim().toUpperCase().replace(/\s+/g, '');
