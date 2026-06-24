@@ -108,13 +108,15 @@ async function assembleStatus(candidate, zip) {
 
   // Sendungen über alle Lieferscheine einsammeln.
   const shipments = [];
+  let packageCount = 0;
   for (const note of notes) {
     const raw = await safe(() => getDeliveryNoteShipments(f.id(note)), []);
     for (const s of raw) {
-      const trackingNumber = f.trackingNumber(s);
+      const extras = Array.isArray(s.additionalPackages) ? s.additionalPackages.length : 0;
+      packageCount += 1 + extras;
       shipments.push({
-        carrier: f.carrier(s) || 'Versanddienstleister',
-        trackingNumber: trackingNumber || null,
+        carrier: prettyCarrier(f.carrier(s)),
+        trackingNumber: f.trackingNumber(s) || null,
         trackingLink: f.trackingLink(s) || null,
         shippedAt: f.shippedAt(s) || null,
       });
@@ -122,23 +124,45 @@ async function assembleStatus(candidate, zip) {
   }
 
   const hasTracking = shipments.some((s) => s.trackingNumber || s.trackingLink);
+  const anyNoteSent = notes.some((n) => /sent|versendet|shipped/.test(String(f.status(n) || '').toLowerCase()));
+  const shipped = hasTracking || anyNoteSent;
   const orderStatus = String(f.status(order) || f.status(record) || '').toLowerCase();
   const delivered = /deliver|zugestellt|abgeschlossen|completed|closed/.test(orderStatus);
 
   // Stufen-Logik (bewusst konservativ, siehe README):
   let stage = 0; // Bestellung erhalten
   if (notes.length > 0) stage = 1; // Lieferschein existiert -> Kommissionierung
-  if (hasTracking) stage = 2; // Tracking vorhanden -> Versendet
-  if (delivered && hasTracking) stage = 3; // explizites Signal -> Zugestellt
+  if (shipped) stage = 2; // versendet / Tracking vorhanden -> Versendet
+  if (delivered && shipped) stage = 3; // explizites Signal -> Zugestellt
 
   return {
     orderNumber: f.documentNumber(order || record) || '',
     stage,
     stageLabel: STAGES[stage],
     deliveryDate: f.deliveryDate(order) || f.deliveryDate(record) || null,
-    packageCount: shipments.length,
+    packageCount: packageCount || shipments.length,
     shipments,
   };
+}
+
+// Carrier-Code (z. B. "dhl_1") in einen lesbaren Namen wandeln.
+function prettyCarrier(raw) {
+  if (!raw) return 'Versanddienstleister';
+  const key = String(raw).toLowerCase().split('_')[0];
+  const map = {
+    dhl: 'DHL',
+    dhlexpress: 'DHL Express',
+    dpd: 'DPD',
+    gls: 'GLS',
+    ups: 'UPS',
+    hermes: 'Hermes',
+    fedex: 'FedEx',
+    tnt: 'TNT',
+    dpag: 'Deutsche Post',
+    deutschepost: 'Deutsche Post',
+    post: 'Post',
+  };
+  return map[key] || key.charAt(0).toUpperCase() + key.slice(1);
 }
 
 async function safe(fn, fallback) {

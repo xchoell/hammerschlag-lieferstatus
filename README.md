@@ -52,12 +52,13 @@ Im Mock-Modus gibt es drei Test-Bestellungen (siehe `src/mock.js`), z. B.:
    npm run probe                 # erste Sales Order
    npm run probe AU-20294        # gezielte Bestellung
    ```
-   Das Skript dumpt die echten JSON-Responses. Prüfe, ob `trackingNumber`, `trackingLink`,
-   `carrier`, `zipCode`, `deliveryDate` zu den Gettern in [`src/xentral.js`](src/xentral.js)
+   Das Skript dumpt die echten JSON-Responses. Prüfe, ob `tracking.number`, `tracking.link`,
+   `tracking.carrier`, `zipCode`, `deliveryDate` zu den Gettern in [`src/xentral.js`](src/xentral.js)
    (`export const f`) passen – und passe die Kandidatenlisten bei Abweichung an.
-   > Hintergrund: Auth (PAT/Bearer) und Endpoints sind aus der offiziellen Doku verifiziert;
-   > die exakten Tracking-**Feldnamen** sind dort nicht ausgeschrieben – daher der Probe-Schritt
-   > statt geratener Namen.
+   > Status: gegen die Testinstanz `66d6a9db98f2b` verifiziert (Stand 2026-06-24). Das echte
+   > Shipment-Shape ist `{ tracking: { number, link, carrier }, sentAt, additionalPackages }`,
+   > die Liefer-PLZ liegt unter `effectiveAddresses.shipTo.zipCode` bzw. `documentAddress.zipCode`.
+   > Der Probe-Schritt bleibt nötig, wenn eine **andere** Instanz angebunden wird.
 4. Starten: `npm start`.
 
 ## Hosting auf dem VPS

@@ -98,19 +98,23 @@ function pick(record, paths) {
   return undefined;
 }
 
+// Feldpfade gegen die echte Instanz verifiziert (npm run probe / scripts/explore.mjs):
+// - salesOrder: effectiveAddresses.shipTo.zipCode bzw. documentAddress.zipCode
+// - shipment:   tracking.{number,link,carrier}, sentAt
 export const f = {
   id: (r) => pick(r, ['id']),
   status: (r) => pick(r, ['status', 'state', 'documentStatus']),
   documentNumber: (r) => pick(r, ['documentNumber', 'number', 'belegnr']),
 
   // Liefer-PLZ (zur serverseitigen Prüfung des zweiten Faktors).
+  // effectiveAddresses.shipTo = tatsächliche Versandadresse (deckt abweichende ab).
   deliveryZip: (r) =>
     pick(r, [
-      'deliveryAddress.zipCode',
-      'deviatingDeliveryAddress.zipCode',
+      'effectiveAddresses.shipTo.zipCode',
+      'deviatingShipToAddress.zipCode',
       'documentAddress.zipCode',
+      'deliveryAddress.zipCode',
       'address.zipCode',
-      'shippingAddress.zipCode',
       'zipCode',
     ]),
 
@@ -118,10 +122,9 @@ export const f = {
   deliveryDate: (r) =>
     pick(r, ['desiredDeliveryDate', 'deliveryDate', 'estimatedDeliveryDate', 'shippingDate']),
 
-  // Shipment / Tracking.
-  trackingNumber: (s) => pick(s, ['trackingNumber', 'tracking', 'trackingId', 'trackingNo']),
-  trackingLink: (s) => pick(s, ['trackingLink', 'trackingUrl', 'trackingURL', 'link', 'url']),
-  carrier: (s) =>
-    pick(s, ['shippingMethod.name', 'carrier', 'shippingProvider', 'versandunternehmen', 'shippingMethod']),
-  shippedAt: (s) => pick(s, ['shippedAt', 'dispatchedAt', 'sentAt', 'shippingDate', 'createdAt']),
+  // Shipment / Tracking (tracking ist im v1-Response ein verschachteltes Objekt).
+  trackingNumber: (s) => pick(s, ['tracking.number', 'trackingNumber', 'trackingNo']),
+  trackingLink: (s) => pick(s, ['tracking.link', 'trackingLink', 'trackingUrl', 'trackingURL']),
+  carrier: (s) => pick(s, ['tracking.carrier', 'shippingMethod.name', 'carrier', 'shippingProvider']),
+  shippedAt: (s) => pick(s, ['sentAt', 'shippedAt', 'dispatchedAt', 'shippingDate']),
 };
