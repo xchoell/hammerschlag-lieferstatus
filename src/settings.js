@@ -14,6 +14,7 @@ export const EDITABLE = [
   { key: 'xentral.token', label: 'Xentral PAT (Personal Access Token)', type: 'secret' },
   { key: 'dhl.apiKey', label: 'DHL API Key', type: 'secret' },
   { key: 'dhl.service', label: 'DHL Service-Code', type: 'text', hint: 'parcel-de, express, parcel-nl …' },
+  { key: 'expectedDeliveryWorkingDays', label: 'Voraussichtl. Liefertag: Werktage nach Auftragsanlage (0 = aus)', type: 'number', hint: 'z. B. 3 – nur Fallback, wenn kein Wunsch-/Carrier-Datum vorliegt' },
   { key: 'deliveredFallbackOnOrderStatus', label: '„Zugestellt" notfalls aus ERP-Status ableiten (Demo, ohne DHL-Key)', type: 'bool' },
   { key: 'useMock', label: 'Mock-Modus (Demo-Daten statt echter Instanz)', type: 'bool' },
   { key: 'brand.name', label: 'Firmenname', type: 'text' },
@@ -58,6 +59,7 @@ export function viewSettings() {
     const value = getPath(config, f.key);
     if (f.type === 'secret') return { ...f, isSet: !!value, value: '' };
     if (f.type === 'bool') return { ...f, value: !!value };
+    if (f.type === 'number') return { ...f, value: Number(value) || 0 };
     return { ...f, value: value ?? '' };
   });
 }
@@ -77,6 +79,11 @@ export function saveSettings(body = {}) {
         setPath(config, f.key, raw.trim());
         stored[f.key] = raw.trim();
       }
+    } else if (f.type === 'number') {
+      const n = Number.parseInt(raw, 10);
+      const v = Number.isFinite(n) && n >= 0 ? n : 0;
+      setPath(config, f.key, v);
+      stored[f.key] = v;
     } else {
       let v = (raw ?? '').trim();
       if (f.key === 'xentral.baseUrl') v = v.replace(/\/+$/, '');

@@ -14,6 +14,7 @@ const ORDERS = [
       stage: 2,
       stageLabel: 'Versendet',
       deliveryDate: '2026-06-25',
+      deliveryDateKind: 'wish',
       packageCount: 2,
       shipments: [
         {
@@ -41,6 +42,7 @@ const ORDERS = [
       stage: 1,
       stageLabel: 'Auftrag wird gepackt',
       deliveryDate: '2026-06-27',
+      deliveryDateKind: 'estimated',
       packageCount: 0,
       shipments: [],
     },
@@ -55,6 +57,7 @@ const ORDERS = [
       stage: 3,
       stageLabel: 'Zugestellt',
       deliveryDate: '2026-06-20',
+      deliveryDateKind: 'delivered',
       packageCount: 1,
       shipments: [
         {

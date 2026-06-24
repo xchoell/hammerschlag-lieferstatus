@@ -134,6 +134,10 @@ export const f = {
   deliveryDate: (r) =>
     pick(r, ['desiredDeliveryDate', 'deliveryDate', 'estimatedDeliveryDate', 'shippingDate']),
 
+  // Wunschlieferdatum (nur das explizite Feld) und Auftragsdatum.
+  wishDate: (r) => pick(r, ['desiredDeliveryDate']),
+  orderDate: (r) => pick(r, ['documentDate', 'orderDate', 'date', 'createdAt']),
+
   // Shipment / Tracking (tracking ist im v1-Response ein verschachteltes Objekt).
   trackingNumber: (s) => pick(s, ['tracking.number', 'trackingNumber', 'trackingNo']),
   trackingLink: (s) => pick(s, ['tracking.link', 'trackingLink', 'trackingUrl', 'trackingURL']),

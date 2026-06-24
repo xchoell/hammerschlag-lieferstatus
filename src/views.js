@@ -204,11 +204,19 @@ export function renderResult(s) {
     </div>`;
   }).join('');
 
-  const eta = s.stage < 3 && s.deliveryDate
-    ? `<div class="eta"><small>Voraussichtlicher Liefertag</small><b>${fmtDate(s.deliveryDate)}</b></div>`
-    : s.stage === 3 && s.deliveryDate
-      ? `<div class="eta"><small>Zugestellt am</small><b>${fmtDate(s.deliveryDate)}</b></div>`
-      : '';
+  const etaLabels = {
+    wish: 'Wunschliefertermin',
+    carrier: 'Voraussichtlicher Liefertag',
+    estimated: 'Voraussichtlicher Liefertag (geschätzt)',
+  };
+  let eta = '';
+  if (s.deliveryDate && s.deliveryDateKind === 'delivered') {
+    // Zugestellt: nur das echte Carrier-Zustelldatum zeigen.
+    eta = `<div class="eta"><small>Zugestellt am</small><b>${fmtDate(s.deliveryDate)}</b></div>`;
+  } else if (s.deliveryDate && s.stage < 3) {
+    const label = etaLabels[s.deliveryDateKind] || 'Voraussichtlicher Liefertag';
+    eta = `<div class="eta"><small>${esc(label)}</small><b>${fmtDate(s.deliveryDate)}</b></div>`;
+  }
 
   const tracking = s.shipments
     .filter((sh) => sh.trackingLink || sh.trackingNumber)
@@ -258,13 +266,15 @@ export function renderSettings(fields, { saved, warning } = {}) {
         return `<label class="chk"><input type="checkbox" name="${name}" ${field.value ? 'checked' : ''} /> <span>${esc(field.label)}</span></label>`;
       }
       const isSecret = field.type === 'secret';
+      const isNumber = field.type === 'number';
+      const inputType = isSecret ? 'password' : isNumber ? 'number' : 'text';
       const ph = isSecret
         ? field.isSet
           ? '•••••••• gesetzt – leer lassen = unverändert'
           : 'nicht gesetzt'
         : field.hint || '';
       return `<label for="${name}">${esc(field.label)}</label>
-      <input id="${name}" name="${name}" type="${isSecret ? 'password' : 'text'}" value="${isSecret ? '' : esc(field.value)}" placeholder="${esc(ph)}" autocomplete="off" />`;
+      <input id="${name}" name="${name}" type="${inputType}"${isNumber ? ' min="0" step="1"' : ''} value="${isSecret ? '' : esc(field.value)}" placeholder="${esc(ph)}" autocomplete="off" />`;
     })
     .join('');
 

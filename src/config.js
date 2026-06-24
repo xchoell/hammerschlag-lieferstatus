@@ -44,6 +44,9 @@ export const config = {
   // "Zugestellt" wird per Carrier-API bestimmt. Optionaler Fallback auf den
   // ERP-Auftragsstatus, NUR wenn der Carrier nicht abfragbar ist (Default aus).
   deliveredFallbackOnOrderStatus: bool(process.env.DELIVERED_FALLBACK_ON_ORDER_STATUS, false),
+  // Voraussichtlicher Liefertag als Fallback: Auftragsdatum + x Werktage.
+  // 0 = aus. Greift nur, wenn weder Wunschlieferdatum noch Carrier-Datum vorliegt.
+  expectedDeliveryWorkingDays: int(process.env.EXPECTED_DELIVERY_WORKING_DAYS, 0),
   // Settings-Page (Admin).
   admin: {
     password: process.env.ADMIN_PASSWORD || 'Xentral123!',
