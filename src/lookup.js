@@ -163,8 +163,14 @@ async function assembleStatus(candidate, zip) {
   const deliveryDate =
     delivered && deliveredAt ? deliveredAt : f.deliveryDate(order) || f.deliveryDate(record) || null;
 
+  // Empfängername + Lieferadresse - bevorzugt aus dem Lieferschein.
+  const recipientName = f.recipientName(notes[0]) || f.recipientName(order) || f.recipientName(record) || '';
+  const deliveryAddress = f.deliveryAddress(notes[0]) || f.deliveryAddress(order) || f.deliveryAddress(record);
+
   return {
     orderNumber: f.documentNumber(order || record) || '',
+    recipientName,
+    deliveryAddress,
     stage,
     stageLabel: STAGES[stage],
     deliveryDate,

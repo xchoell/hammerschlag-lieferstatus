@@ -173,13 +173,32 @@ export function renderResult(s) {
 
   const icon = s.stage === 3 ? '📦' : s.stage === 2 ? '🚚' : '🛠️';
 
+  const greeting = s.recipientName
+    ? `<p style="font-size:16px;font-weight:500;margin:0 0 10px;">Hallo ${esc(s.recipientName)}</p>`
+    : '';
+
+  const a = s.deliveryAddress;
+  const addr = a
+    ? `<div class="eta"><small>Lieferadresse</small>${[
+        a.name,
+        a.contactPerson && a.contactPerson !== a.name ? a.contactPerson : null,
+        a.street,
+        [a.zipCode, a.city].filter(Boolean).join(' '),
+      ]
+        .filter(Boolean)
+        .map((line) => `<div style="font-size:14px;line-height:1.4;">${esc(line)}</div>`)
+        .join('')}</div>`
+    : '';
+
   return layout(
     `Bestellung ${s.orderNumber}`,
     `
+    ${greeting}
     <p class="sub">Bestellung ${esc(s.orderNumber)}</p>
     <div class="statusline"><span class="dot">${icon}</span><b>${esc(STAGES[s.stage] ?? s.stageLabel)}</b></div>
     <div class="steps">${stepsHtml}</div>
     ${eta}
+    ${addr}
     ${tracking}
     <a class="back" href="/">← Andere Bestellung suchen</a>`,
   );

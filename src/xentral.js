@@ -85,6 +85,18 @@ function deepGet(obj, path) {
   return path.split('.').reduce((acc, k) => (acc == null ? acc : acc[k]), obj);
 }
 
+// Erstes Adress-Objekt mit echtem Inhalt (Name/Straße/PLZ/Ort) zurückgeben.
+function pickAddress(record, paths) {
+  if (!record) return null;
+  for (const p of paths) {
+    const v = deepGet(record, p) ?? deepGet(record.attributes || {}, p);
+    if (v && typeof v === 'object' && (v.zipCode || v.street || v.city || v.name)) return v;
+  }
+  return null;
+}
+
+const ADDRESS_PATHS = ['documentAddress', 'effectiveAddresses.shipTo', 'deviatingShipToAddress', 'address'];
+
 // Liest ein Feld aus dem Record - flach ODER unter attributes - über mehrere
 // mögliche Pfade hinweg. Erster nicht-leerer Treffer gewinnt.
 function pick(record, paths) {
@@ -127,4 +139,11 @@ export const f = {
   trackingLink: (s) => pick(s, ['tracking.link', 'trackingLink', 'trackingUrl', 'trackingURL']),
   carrier: (s) => pick(s, ['tracking.carrier', 'shippingMethod.name', 'carrier', 'shippingProvider']),
   shippedAt: (s) => pick(s, ['sentAt', 'shippedAt', 'dispatchedAt', 'shippingDate']),
+
+  // Lieferadresse (komplettes Objekt) + Name des Empfängers/Bestellers.
+  deliveryAddress: (r) => pickAddress(r, ADDRESS_PATHS),
+  recipientName: (r) => {
+    const a = pickAddress(r, ADDRESS_PATHS) || {};
+    return a.contactPerson || a.name || '';
+  },
 };

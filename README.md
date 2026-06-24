@@ -147,8 +147,11 @@ Die Seite ist öffentlich und ohne Login – daher fest eingebaut:
 - **Generische Fehlermeldung**: „nicht gefunden" ist identisch, egal ob Nummer unbekannt oder
   PLZ falsch (kein Oracle für Enumeration).
 - **Rate-Limit** pro IP (`RATE_LIMIT_*`).
-- **Datenminimierung**: angezeigt werden nur Status, Liefertag, Carrier + Tracking-Link,
-  Paketanzahl. **Kein** Name, keine Adresse, keine Artikelpositionen.
+- **Anzeigeumfang**: Status, Liefertag, Carrier + Tracking-Link, Paketanzahl sowie
+  – auf Wunsch – **Empfängername und Lieferadresse** (aus dem Lieferschein). Keine
+  Artikelpositionen, keine Preise. Hinweis: Name/Adresse sind personenbezogen; die
+  PLZ-Pflicht als zweiter Faktor schützt den Zugriff. Optionale Abschwächung: Adresse
+  maskieren (z. B. nur Ort/PLZ) – via Flag erweiterbar in `views.js`/`lookup.js`.
 - **Token serverseitig**, strikte CSP, `noindex`.
 - DSGVO-Basis: Art. 6 (1) b (Vertragserfüllung), kein zusätzliches Speichern.
 

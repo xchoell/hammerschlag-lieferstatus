@@ -9,6 +9,8 @@ const ORDERS = [
     zip: '80331',
     data: {
       orderNumber: 'AU-20294',
+      recipientName: 'Wonne Sonne',
+      deliveryAddress: { name: 'SunnyCompany', contactPerson: 'Wonne Sonne', street: 'Sonnenallee 1', zipCode: '80331', city: 'München', country: 'DE' },
       stage: 2,
       stageLabel: 'Versendet',
       deliveryDate: '2026-06-25',
@@ -34,6 +36,8 @@ const ORDERS = [
     zip: '50667',
     data: {
       orderNumber: 'AU-20310',
+      recipientName: 'Bernd Bau',
+      deliveryAddress: { name: 'Bau & Co KG', contactPerson: 'Bernd Bau', street: 'Domkloster 4', zipCode: '50667', city: 'Köln', country: 'DE' },
       stage: 1,
       stageLabel: 'Auftrag wird gepackt',
       deliveryDate: '2026-06-27',
@@ -46,6 +50,8 @@ const ORDERS = [
     zip: '20095',
     data: {
       orderNumber: 'AU-20255',
+      recipientName: 'Hanna Hammer',
+      deliveryAddress: { name: 'Hammer Werkstatt', contactPerson: 'Hanna Hammer', street: 'Reeperbahn 1', zipCode: '20095', city: 'Hamburg', country: 'DE' },
       stage: 3,
       stageLabel: 'Zugestellt',
       deliveryDate: '2026-06-20',
