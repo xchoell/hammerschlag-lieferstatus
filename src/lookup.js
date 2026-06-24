@@ -104,6 +104,13 @@ async function assembleStatus(candidate, zip) {
     notes = await safe(() => listDeliveryNotesForOrder(f.id(record)), []);
   } else {
     notes = [record];
+    // Elternauftrag nachladen, damit Status/Liefertag konsistent zum
+    // Auftragsnummer-Pfad sind (sonst zeigt LS-Lookup "Versendet" statt "Zugestellt").
+    const soId = record.salesOrder?.id ?? record.attributes?.salesOrder?.id;
+    if (soId) {
+      const orders = await safe(() => listSalesOrders('id', soId), []);
+      order = orders[0] || null;
+    }
   }
 
   // Sendungen über alle Lieferscheine einsammeln.
@@ -151,6 +158,7 @@ function prettyCarrier(raw) {
   const key = String(raw).toLowerCase().split('_')[0];
   const map = {
     dhl: 'DHL',
+    dhlversenden: 'DHL',
     dhlexpress: 'DHL Express',
     dpd: 'DPD',
     gls: 'GLS',
