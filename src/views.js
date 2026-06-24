@@ -1,5 +1,6 @@
 import { config } from './config.js';
 import { STAGES, CANCELLED_STAGES } from './lookup.js';
+import { logoStatus } from './logo.js';
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -36,10 +37,8 @@ function layout(title, body) {
   .head--logo { flex-direction: column; align-items: flex-start; gap: 8px; }
   .logo { width: 32px; height: 32px; border-radius: 8px; background: var(--accent); color: #fff;
     display: flex; align-items: center; justify-content: center; font-weight: 600; }
-  .logo-img { height: 58px; width: auto; display: block; }
-  .head-sub { font-size: 12px; color: #6b7280; }
+  .logo-img { width: 100%; height: auto; display: block; }
   .head b { font-size: 14px; display: block; }
-  .head span { font-size: 12px; color: #6b7280; }
   .body { padding: 20px 18px; }
   h1 { font-size: 19px; margin: 0 0 4px; }
   p.sub { color: #6b7280; font-size: 13px; margin: 0 0 18px; }
@@ -58,6 +57,9 @@ function layout(title, body) {
     border-radius: 10px; padding: 10px 12px; margin-bottom: 16px; }
   .chk { display: flex; align-items: flex-start; gap: 8px; font-weight: 400; font-size: 14px; margin: 16px 0 0; }
   .chk input { width: auto; height: auto; margin-top: 2px; }
+  .logo-preview { text-align: center; padding: 14px; }
+  .logo-preview img { max-height: 60px; max-width: 100%; display: inline-block; }
+  input.file { height: auto; padding: 9px 12px; font-size: 13px; }
   button.ghost { background: transparent; color: #6b7280; border: 1px solid #d1d5db; margin-top: 10px; }
   .statusline { display: flex; align-items: center; gap: 8px; margin: 6px 0 18px; }
   .statusline .dot { font-size: 22px; }
@@ -93,8 +95,8 @@ function layout(title, body) {
     <div class="card">
       <div class="head${brand.logoUrl ? ' head--logo' : ''}">
         ${brand.logoUrl
-          ? `<img class="logo-img" src="${esc(brand.logoUrl)}" alt="${esc(brand.name)}" /><span class="head-sub">Sendungsverfolgung</span>`
-          : `<div class="logo">${esc(brand.name.charAt(0))}</div><div><b>${esc(brand.name)}</b><span>Sendungsverfolgung</span></div>`}
+          ? `<img class="logo-img" src="${esc(brand.logoUrl)}" alt="${esc(brand.name)}" />`
+          : `<div class="logo">${esc(brand.name.charAt(0))}</div><div><b>${esc(brand.name)}</b></div>`}
       </div>
       <div class="body">${body}</div>
     </div>
@@ -109,7 +111,7 @@ export function renderForm({ error, query } = {}) {
     'Lieferstatus',
     `
     <h1>Wo ist meine Lieferung?</h1>
-    <p class="sub">Status ohne Login abrufen – einfach Nummer und Liefer-PLZ eingeben.</p>
+    <p class="sub">Einfach Nummer und Liefer-PLZ eingeben.</p>
     ${error ? `<div class="err">${esc(error)}</div>` : ''}
     <form method="post" action="/status" autocomplete="off">
       <label for="query">Nummer</label>
@@ -250,7 +252,7 @@ export function renderLogin({ error } = {}) {
   );
 }
 
-export function renderSettings(fields, { saved, warning } = {}) {
+export function renderSettings(fields, { saved, warning, error } = {}) {
   const rows = fields
     .map((field) => {
       const name = field.key.replace(/\./g, '__');
@@ -268,15 +270,27 @@ export function renderSettings(fields, { saved, warning } = {}) {
     })
     .join('');
 
+  const logo = logoStatus();
+  const logoBlock = `
+    <label for="logo">Logo</label>
+    ${logo.url
+      ? `<div class="eta logo-preview"><img src="${esc(logo.url)}" alt="Aktuelles Logo" /></div>`
+      : '<p class="sub">Kein Logo gesetzt – es wird die Buchstaben-Kachel angezeigt.</p>'}
+    <input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" class="file" />
+    <p class="hint">PNG, JPG, GIF, WebP oder SVG · max. 1 MB · max. 1000px Breite.</p>
+    ${logo.custom ? '<label class="chk"><input type="checkbox" name="removeLogo" /> <span>Hochgeladenes Logo entfernen (Standard verwenden)</span></label>' : ''}`;
+
   return layout(
     'Einstellungen',
     `
     <h1>Einstellungen</h1>
     <p class="sub">Änderungen wirken sofort und werden gespeichert.</p>
     ${saved ? '<div class="ok">Gespeichert.</div>' : ''}
+    ${error ? `<div class="err">${esc(error)}</div>` : ''}
     ${warning ? `<div class="err">${esc(warning)}</div>` : ''}
-    <form method="post" action="/admin" autocomplete="off">
+    <form method="post" action="/admin" enctype="multipart/form-data" autocomplete="off">
       ${rows}
+      ${logoBlock}
       <button type="submit">Speichern</button>
     </form>
     <form method="post" action="/admin/logout"><button type="submit" class="ghost">Abmelden</button></form>`,
