@@ -184,11 +184,15 @@ async function assembleStatus(candidate, zip) {
   const recipientName = f.recipientName(notes[0]) || f.recipientName(order) || f.recipientName(record) || '';
   const deliveryAddress = f.deliveryAddress(notes[0]) || f.deliveryAddress(order) || f.deliveryAddress(record);
 
+  // "Lieferdatum überschritten"-Hinweis (optional).
+  const overdue = isOverdue({ deliveryDate, deliveryDateKind, delivered, cancelled });
+
   return {
     orderNumber: f.documentNumber(order || record) || '',
     recipientName,
     deliveryAddress,
     cancelled,
+    overdue,
     stage,
     stageLabel: cancelled ? 'Auftrag storniert' : STAGES[stage],
     deliveryDate,
@@ -196,6 +200,24 @@ async function assembleStatus(candidate, zip) {
     packageCount: packageCount || shipments.length,
     shipments,
   };
+}
+
+// True, wenn der voraussichtliche Liefertag + Karenz überschritten ist und die
+// Sendung noch nicht zugestellt wurde. Prüft NUR gegen ein voraussichtliches
+// Datum (nicht gegen das tatsächliche Zustelldatum).
+function isOverdue({ deliveryDate, deliveryDateKind, delivered, cancelled }) {
+  if (!config.deliveryOverdue.enabled) return false;
+  if (cancelled || delivered) return false;
+  if (!deliveryDate || deliveryDateKind === 'delivered') return false;
+
+  const due = new Date(deliveryDate);
+  if (Number.isNaN(due.getTime())) return false;
+  due.setDate(due.getDate() + (config.deliveryOverdue.days || 0));
+  due.setHours(0, 0, 0, 0);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today > due;
 }
 
 // Liefertag-Priorität. Gibt { date, kind } zurück; kind steuert das Label.

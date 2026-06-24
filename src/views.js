@@ -231,12 +231,17 @@ export function renderResult(s) {
 
   const icon = s.stage === 3 ? '📦' : s.stage === 2 ? '🚚' : '🛠️';
 
+  const overdueHtml = s.overdue
+    ? `<div class="err">Bitte kontaktiere uns, hier scheint etwas schiefgelaufen zu sein.${brand.supportEmail ? ` (${esc(brand.supportEmail)})` : ''}</div>`
+    : '';
+
   return layout(
     `Bestellung ${s.orderNumber}`,
     `
     ${greetingHtml(s.recipientName)}
     <p class="sub">Bestellung ${esc(s.orderNumber)}</p>
     <div class="statusline"><span class="dot">${icon}</span><b>${esc(STAGES[s.stage] ?? s.stageLabel)}</b></div>
+    ${overdueHtml}
     <div class="steps">${stepsHtml}</div>
     ${eta}
     ${addressHtml(s.deliveryAddress)}

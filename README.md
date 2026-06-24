@@ -94,6 +94,14 @@ Der angezeigte Liefertag folgt einer festen Priorität (erste vorhandene Quelle 
 
 Ist keine Quelle verfügbar, wird kein Liefertag angezeigt.
 
+### „Lieferdatum überschritten"-Hinweis
+
+Optional (`DELIVERY_OVERDUE_ENABLED`, auch in `/admin`): Ist der **voraussichtliche**
+Liefertag + Karenz (`DELIVERY_OVERDUE_DAYS` Kalendertage) überschritten und die
+Sendung noch **nicht zugestellt**, erscheint ein Hinweis im Stil der Storno-Meldung:
+„Bitte kontaktiere uns, hier scheint etwas schiefgelaufen zu sein." Gegen das
+tatsächliche Zustelldatum wird bewusst **nicht** geprüft (zugestellt ≠ überfällig).
+
 ## Settings-Page (`/admin`)
 
 Passwortgeschützte Oberfläche zum Ändern der Einstellungen **zur Laufzeit** –
