@@ -51,6 +51,19 @@ function layout(title, body) {
   button:active { transform: scale(.99); }
   .hint { font-size: 12px; color: #6b7280; margin-top: 16px; }
   .hint ul { margin: 6px 0 0; padding-left: 18px; }
+  .label-row { display: flex; align-items: center; gap: 6px; margin: 14px 0 6px; }
+  .label-row label { margin: 0; }
+  .info { position: relative; display: inline-flex; cursor: help; }
+  .info-ic { width: 16px; height: 16px; border-radius: 50%; border: 1px solid #9ca3af;
+    color: #6b7280; font-size: 11px; font-weight: 600; line-height: 1;
+    display: flex; align-items: center; justify-content: center; }
+  .info-pop { position: absolute; left: 0; top: 24px; z-index: 10; width: 240px;
+    background: #1f2937; color: #fff; font-size: 12px; font-weight: 400; line-height: 1.45;
+    padding: 10px 12px; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.18);
+    opacity: 0; visibility: hidden; transition: opacity .12s; }
+  .info-pop ul { margin: 6px 0 0; padding-left: 16px; }
+  .info:hover .info-pop, .info:focus .info-pop, .info:focus-within .info-pop {
+    opacity: 1; visibility: visible; }
   .err { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 13px;
     border-radius: 10px; padding: 10px 12px; margin-bottom: 16px; }
   .ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; font-size: 13px;
@@ -111,23 +124,27 @@ export function renderForm({ error, query } = {}) {
     'Lieferstatus',
     `
     <h1>Wo ist meine Lieferung?</h1>
-    <p class="sub">Einfach Nummer und Liefer-PLZ eingeben.</p>
     ${error ? `<div class="err">${esc(error)}</div>` : ''}
     <form method="post" action="/status" autocomplete="off">
-      <label for="query">Nummer</label>
+      <div class="label-row">
+        <label for="query">Nummer</label>
+        <span class="info" tabindex="0" role="button" aria-label="Welche Nummern sind erlaubt?">
+          <span class="info-ic" aria-hidden="true">i</span>
+          <span class="info-pop" role="tooltip">Gib eine der folgenden Nummern ein, um den Auftragsstatus einzusehen:
+            <ul>
+              <li>Auftragsnummer</li>
+              <li>Bestellnummer</li>
+              <li>Internet-/Shop-Bestellnummer</li>
+              <li>Lieferscheinnummer</li>
+            </ul>
+          </span>
+        </span>
+      </div>
       <input id="query" name="query" inputmode="text" required value="${esc(query || '')}" placeholder="z. B. AU-20294" />
       <label for="zip">Liefer-PLZ</label>
       <input id="zip" name="zip" inputmode="numeric" required placeholder="z. B. 80331" />
       <button type="submit">Status anzeigen</button>
-    </form>
-    <div class="hint">Du findest deine Nummer auf der Auftragsbestätigung oder dem Lieferschein:
-      <ul>
-        <li>Auftragsnummer</li>
-        <li>Bestellnummer</li>
-        <li>Internet-/Shop-Bestellnummer</li>
-        <li>Lieferscheinnummer</li>
-      </ul>
-    </div>`,
+    </form>`,
   );
 }
 
