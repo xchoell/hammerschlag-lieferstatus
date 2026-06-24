@@ -1,0 +1,20 @@
+{
+  "name": "hammerschlag-lieferstatus",
+  "version": "0.1.0",
+  "description": "Öffentliche Sendungsstatus-Seite (ohne Login) auf Basis der Xentral REST-API. Kunde ruft Status mit Nummer + PLZ ab.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "probe": "node scripts/probe.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "helmet": "^7.1.0"
+  }
+}

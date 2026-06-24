@@ -1,0 +1,11 @@
+services:
+  lieferstatus:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Auf dem VPS läuft typischerweise ein Reverse-Proxy davor.
+      TRUST_PROXY: "1"

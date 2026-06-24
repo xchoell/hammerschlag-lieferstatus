@@ -1,0 +1,175 @@
+import { config } from './config.js';
+import { STAGES } from './lookup.js';
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
+}
+
+function fmtDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return esc(iso);
+  return d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+const brand = config.brand;
+
+function layout(title, body) {
+  return `<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>${esc(title)} · ${esc(brand.name)}</title>
+<style>
+  :root { --accent: ${esc(brand.color)}; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #f4f4f5; color: #1a1a1a;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5; }
+  .wrap { max-width: 420px; margin: 0 auto; padding: 24px 16px 48px; }
+  .card { background: #fff; border: 1px solid #e5e5e5; border-radius: 16px; overflow: hidden; }
+  .head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid #eee; }
+  .logo { width: 32px; height: 32px; border-radius: 8px; background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 600; }
+  .head b { font-size: 14px; display: block; }
+  .head span { font-size: 12px; color: #6b7280; }
+  .body { padding: 20px 18px; }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  p.sub { color: #6b7280; font-size: 13px; margin: 0 0 18px; }
+  label { display: block; font-size: 13px; font-weight: 500; margin: 14px 0 6px; }
+  input { width: 100%; height: 44px; padding: 0 12px; font-size: 16px; border: 1px solid #d1d5db;
+    border-radius: 10px; background: #fff; }
+  input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,0,0,.06); }
+  button { width: 100%; height: 46px; margin-top: 20px; border: 0; border-radius: 10px;
+    background: var(--accent); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+  button:active { transform: scale(.99); }
+  .hint { font-size: 12px; color: #6b7280; margin-top: 16px; }
+  .hint ul { margin: 6px 0 0; padding-left: 18px; }
+  .err { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 13px;
+    border-radius: 10px; padding: 10px 12px; margin-bottom: 16px; }
+  .statusline { display: flex; align-items: center; gap: 8px; margin: 6px 0 18px; }
+  .statusline .dot { font-size: 22px; }
+  .statusline b { font-size: 18px; }
+  .steps { margin: 0 0 18px; }
+  .step { display: flex; gap: 12px; }
+  .step .rail { display: flex; flex-direction: column; align-items: center; }
+  .step .bullet { width: 18px; height: 18px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; font-size: 11px; color: #fff; flex: none; }
+  .step .line { width: 2px; flex: 1; min-height: 22px; }
+  .step .txt { padding-bottom: 10px; }
+  .step .txt b { font-size: 13px; font-weight: 500; }
+  .step .txt span { display: block; font-size: 11px; color: #6b7280; }
+  .done .bullet { background: #16a34a; } .done .line { background: #16a34a; }
+  .current .bullet { background: var(--accent); } .current .line { background: #e5e7eb; }
+  .current .txt b { color: var(--accent); }
+  .todo .bullet { background: #fff; border: 2px solid #d1d5db; } .todo .line { background: #e5e7eb; }
+  .todo .txt b { color: #9ca3af; font-weight: 400; }
+  .eta { background: #f9fafb; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+  .eta small { color: #6b7280; font-size: 11px; display: block; }
+  .eta b { font-size: 15px; }
+  .track { display: block; text-align: center; text-decoration: none; background: var(--accent);
+    color: #fff; padding: 13px; border-radius: 10px; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .foot { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 16px; }
+  .foot a { color: #6b7280; }
+  a.back { display: inline-block; margin-top: 14px; font-size: 13px; color: #6b7280; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="head">
+        <div class="logo">${esc(brand.name.charAt(0))}</div>
+        <div><b>${esc(brand.name)}</b><span>Sendungsverfolgung</span></div>
+      </div>
+      <div class="body">${body}</div>
+    </div>
+    ${brand.supportEmail ? `<p class="foot">Fragen zur Lieferung? <a href="mailto:${esc(brand.supportEmail)}">${esc(brand.supportEmail)}</a></p>` : ''}
+  </div>
+</body>
+</html>`;
+}
+
+export function renderForm({ error, query } = {}) {
+  return layout(
+    'Lieferstatus',
+    `
+    <h1>Wo ist meine Lieferung?</h1>
+    <p class="sub">Status ohne Login abrufen – einfach Nummer und Liefer-PLZ eingeben.</p>
+    ${error ? `<div class="err">${esc(error)}</div>` : ''}
+    <form method="post" action="/status" autocomplete="off">
+      <label for="query">Nummer</label>
+      <input id="query" name="query" inputmode="text" required value="${esc(query || '')}" placeholder="z. B. AU-20294" />
+      <label for="zip">Liefer-PLZ</label>
+      <input id="zip" name="zip" inputmode="numeric" required placeholder="z. B. 80331" />
+      <button type="submit">Status anzeigen</button>
+    </form>
+    <div class="hint">Du findest deine Nummer auf der Auftragsbestätigung oder dem Lieferschein:
+      <ul>
+        <li>Auftragsnummer</li>
+        <li>Bestellnummer</li>
+        <li>Internet-/Shop-Bestellnummer</li>
+        <li>Lieferscheinnummer</li>
+      </ul>
+    </div>`,
+  );
+}
+
+export function renderNotFound() {
+  return layout(
+    'Nicht gefunden',
+    `
+    <h1>Wir konnten nichts finden</h1>
+    <p class="sub">Bitte prüfe Nummer und PLZ und versuche es erneut. Achte auf Tippfehler
+      und nutze die Liefer-PLZ (nicht die Rechnungsadresse).</p>
+    <a class="back" href="/">← Zurück zur Eingabe</a>`,
+  );
+}
+
+export function renderResult(s) {
+  const stepsHtml = STAGES.map((name, i) => {
+    const cls = i < s.stage ? 'done' : i === s.stage ? 'current' : 'todo';
+    const bullet = i < s.stage ? '✓' : i === s.stage ? '●' : '';
+    const isLast = i === STAGES.length - 1;
+    let sub = '';
+    if (i === 2 && s.stage >= 2 && (s.packageCount || s.shipments.length)) {
+      const carrier = s.shipments[0]?.carrier;
+      sub = `<span>${s.packageCount || s.shipments.length} Paket(e)${carrier ? ' · ' + esc(carrier) : ''}</span>`;
+    }
+    return `<div class="step ${cls}">
+      <div class="rail"><div class="bullet">${bullet}</div>${isLast ? '' : '<div class="line"></div>'}</div>
+      <div class="txt"><b>${esc(name)}</b>${sub}</div>
+    </div>`;
+  }).join('');
+
+  const eta = s.stage < 3 && s.deliveryDate
+    ? `<div class="eta"><small>Voraussichtlicher Liefertag</small><b>${fmtDate(s.deliveryDate)}</b></div>`
+    : s.stage === 3 && s.deliveryDate
+      ? `<div class="eta"><small>Zugestellt am</small><b>${fmtDate(s.deliveryDate)}</b></div>`
+      : '';
+
+  const tracking = s.shipments
+    .filter((sh) => sh.trackingLink || sh.trackingNumber)
+    .map((sh, i) => {
+      const label = s.shipments.length > 1 ? `Paket ${i + 1} verfolgen` : 'Sendung live verfolgen';
+      if (sh.trackingLink) return `<a class="track" href="${esc(sh.trackingLink)}" target="_blank" rel="noopener">${esc(label)} ↗</a>`;
+      return `<div class="eta"><small>Sendungsnummer ${esc(sh.carrier || '')}</small><b>${esc(sh.trackingNumber)}</b></div>`;
+    })
+    .join('');
+
+  const icon = s.stage === 3 ? '📦' : s.stage === 2 ? '🚚' : '🛠️';
+
+  return layout(
+    `Bestellung ${s.orderNumber}`,
+    `
+    <p class="sub">Bestellung ${esc(s.orderNumber)}</p>
+    <div class="statusline"><span class="dot">${icon}</span><b>${esc(s.stageLabel)}</b></div>
+    <div class="steps">${stepsHtml}</div>
+    ${eta}
+    ${tracking}
+    <a class="back" href="/">← Andere Bestellung suchen</a>`,
+  );
+}
