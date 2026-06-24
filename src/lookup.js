@@ -9,7 +9,7 @@ import { config } from './config.js';
 import { mockLookup } from './mock.js';
 
 // Die vier Kunden-Stufen, die auf der Seite angezeigt werden.
-export const STAGES = ['Bestellung erhalten', 'Wird kommissioniert', 'Versendet', 'Zugestellt'];
+export const STAGES = ['Auftrag erhalten', 'Auftrag wird gepackt', 'Versendet', 'Zugestellt'];
 
 const normZip = (v) => String(v ?? '').trim().toUpperCase().replace(/\s+/g, '');
 const normNum = (v) => String(v ?? '').trim();

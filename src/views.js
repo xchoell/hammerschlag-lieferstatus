@@ -131,9 +131,11 @@ export function renderNotFound() {
 
 export function renderResult(s) {
   const stepsHtml = STAGES.map((name, i) => {
-    const cls = i < s.stage ? 'done' : i === s.stage ? 'current' : 'todo';
-    const bullet = i < s.stage ? '✓' : i === s.stage ? '●' : '';
     const isLast = i === STAGES.length - 1;
+    // Die erreichte Endstufe (Zugestellt) gilt als abgeschlossen -> Haken, nicht "aktuell".
+    const reached = i < s.stage || (i === s.stage && isLast);
+    const cls = reached ? 'done' : i === s.stage ? 'current' : 'todo';
+    const bullet = reached ? '✓' : i === s.stage ? '●' : '';
     let sub = '';
     if (i === 2 && s.stage >= 2 && (s.packageCount || s.shipments.length)) {
       const carrier = s.shipments[0]?.carrier;
@@ -166,7 +168,7 @@ export function renderResult(s) {
     `Bestellung ${s.orderNumber}`,
     `
     <p class="sub">Bestellung ${esc(s.orderNumber)}</p>
-    <div class="statusline"><span class="dot">${icon}</span><b>${esc(s.stageLabel)}</b></div>
+    <div class="statusline"><span class="dot">${icon}</span><b>${esc(STAGES[s.stage] ?? s.stageLabel)}</b></div>
     <div class="steps">${stepsHtml}</div>
     ${eta}
     ${tracking}

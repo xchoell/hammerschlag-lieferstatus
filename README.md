@@ -88,8 +88,8 @@ PLZ-verifizierter Treffer gewinnt.
 
 | Stufe | Bedingung |
 |---|---|
-| Bestellung erhalten | Auftrag existiert |
-| Wird kommissioniert | Lieferschein existiert, noch kein Tracking |
+| Auftrag erhalten | Auftrag existiert |
+| Auftrag wird gepackt | Lieferschein existiert, noch kein Tracking |
 | Versendet | Sendung mit Tracking vorhanden |
 | Zugestellt | explizites Liefer-/Abschlusssignal **und** Tracking |
 

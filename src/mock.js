@@ -35,7 +35,7 @@ const ORDERS = [
     data: {
       orderNumber: 'AU-20310',
       stage: 1,
-      stageLabel: 'Wird kommissioniert',
+      stageLabel: 'Auftrag wird gepackt',
       deliveryDate: '2026-06-27',
       packageCount: 0,
       shipments: [],
