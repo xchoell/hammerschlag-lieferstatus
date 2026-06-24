@@ -12,6 +12,13 @@ import { mockLookup } from './mock.js';
 // Die vier Kunden-Stufen, die auf der Seite angezeigt werden.
 export const STAGES = ['Auftrag erhalten', 'Auftrag wird gepackt', 'Versendet', 'Zugestellt'];
 
+// Stornierte Aufträge laufen NICHT durch die normale Kette, sondern zeigen nur
+// diese zwei Stufen. Wird ausschließlich bei cancelled === true verwendet.
+export const CANCELLED_STAGES = ['Auftrag erhalten', 'Auftrag storniert'];
+
+// Erkennt einen stornierten Auftrag am ERP-Status (de/en, diverse Schreibweisen).
+const isCancelledStatus = (s) => /storn|cancel|abgebroch/.test(String(s ?? '').toLowerCase());
+
 const normZip = (v) => String(v ?? '').trim().toUpperCase().replace(/\s+/g, '');
 const normNum = (v) => String(v ?? '').trim();
 
@@ -154,6 +161,9 @@ async function assembleStatus(candidate, zip) {
     delivered = shipped && /deliver|zugestellt|abgeschlossen|completed|closed/.test(orderStatus);
   }
 
+  // Storniert hat Vorrang: ein abgebrochener Auftrag zeigt NIE die normale Kette.
+  const cancelled = isCancelledStatus(f.status(order) || f.status(record));
+
   let stage = 0; // Auftrag erhalten
   if (notes.length > 0) stage = 1; // Lieferschein existiert -> wird gepackt
   if (shipped) stage = 2; // versendet / Tracking vorhanden -> Versendet
@@ -171,8 +181,9 @@ async function assembleStatus(candidate, zip) {
     orderNumber: f.documentNumber(order || record) || '',
     recipientName,
     deliveryAddress,
+    cancelled,
     stage,
-    stageLabel: STAGES[stage],
+    stageLabel: cancelled ? 'Auftrag storniert' : STAGES[stage],
     deliveryDate,
     packageCount: packageCount || shipments.length,
     shipments,
