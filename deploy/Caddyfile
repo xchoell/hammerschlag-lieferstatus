@@ -1,0 +1,20 @@
+# Caddy besorgt automatisch ein Let's-Encrypt-Zertifikat (HTTPS).
+# Voraussetzung: DNS A-/AAAA-Record der Domain zeigt auf die VPS-IP,
+# Ports 80 und 443 sind offen.
+#
+# Domain unten anpassen, dann: sudo caddy reload --config /etc/caddy/Caddyfile
+
+lieferstatus.example.com {
+    encode gzip
+
+    # App lauscht lokal auf 127.0.0.1:3000 (PORT in .env).
+    reverse_proxy 127.0.0.1:3000
+
+    # Sinnvolle Security-Header ergänzend zu helmet.
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+        -Server
+    }
+}

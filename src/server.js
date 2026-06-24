@@ -138,8 +138,8 @@ app.post('/admin/logout', (req, res) => {
 
 app.use((_req, res) => res.status(404).send(renderNotFound()));
 
-app.listen(config.port, () => {
+app.listen(config.port, config.host, () => {
   console.log(
-    `Lieferstatus läuft auf http://localhost:${config.port}  (Mock: ${config.useMock ? 'an' : 'aus'})`,
+    `Lieferstatus läuft auf http://${config.host}:${config.port}  (Mock: ${config.useMock ? 'an' : 'aus'})`,
   );
 });

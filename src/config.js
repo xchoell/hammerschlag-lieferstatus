@@ -19,6 +19,9 @@ export const config = {
     token: process.env.XENTRAL_API_TOKEN || '',
   },
   port: int(process.env.PORT, 3000),
+  // Standardmäßig nur lokal lauschen (hinter Reverse-Proxy). Für direkten
+  // Zugriff (z. B. Docker) HOST=0.0.0.0 setzen.
+  host: process.env.HOST || '127.0.0.1',
   useMock: bool(process.env.USE_MOCK, true),
   trustProxy: bool(process.env.TRUST_PROXY, false),
   rateLimit: {

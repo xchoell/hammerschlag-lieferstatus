@@ -3,9 +3,12 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      # Nur lokal veröffentlichen - der Reverse-Proxy greift über 127.0.0.1 zu.
+      - "127.0.0.1:3000:3000"
     env_file:
       - .env
     environment:
       # Auf dem VPS läuft typischerweise ein Reverse-Proxy davor.
       TRUST_PROXY: "1"
+      # Im Container auf allen Interfaces lauschen (Default ist 127.0.0.1).
+      HOST: "0.0.0.0"

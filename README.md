@@ -65,14 +65,22 @@ Im Mock-Modus gibt es drei Test-Bestellungen (siehe `src/mock.js`), z. B.:
 
 ## Hosting auf dem VPS
 
+**Empfohlen: Node + systemd + Caddy (Domain + HTTPS).** Komplette
+Schritt-für-Schritt-Anleitung in **[DEPLOY.md](DEPLOY.md)** (Git-Push, Dienst-User,
+`.env` mit Secrets, systemd-Unit, automatisches Let's-Encrypt-Zertifikat).
+
+Deploy-Vorlagen: [`deploy/lieferstatus.service`](deploy/lieferstatus.service),
+[`deploy/Caddyfile`](deploy/Caddyfile).
+
+Alternativ per Docker:
+
 ```bash
-cp .env.example .env   # ausfüllen, USE_MOCK=false
+cp .env.example .env   # ausfüllen, USE_MOCK=false, HOST=0.0.0.0
 docker compose up -d --build
 ```
 
-Davor gehört ein Reverse-Proxy mit TLS (Caddy/Nginx/Traefik) auf z. B.
-`status.hammerschlag.de`. `TRUST_PROXY=1` ist im Compose-File schon gesetzt (für korrektes
-Rate-Limiting hinter dem Proxy).
+In beiden Fällen gehört ein Reverse-Proxy mit TLS davor und `TRUST_PROXY=1`
+(korrektes Rate-Limiting + `Secure`-Cookie hinter dem Proxy).
 
 ## Settings-Page (`/admin`)
 

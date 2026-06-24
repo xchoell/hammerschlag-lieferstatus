@@ -1,0 +1,26 @@
+[Unit]
+Description=Hammerschlag Lieferstatus (öffentliche Sendungsstatus-Seite)
+After=network.target
+
+[Service]
+Type=simple
+# Dedizierter User (siehe DEPLOY.md). NICHT als root laufen lassen.
+User=lieferstatus
+Group=lieferstatus
+WorkingDirectory=/opt/hammerschlag-lieferstatus
+# .env wird von der App selbst via dotenv aus dem WorkingDirectory geladen.
+ExecStart=/usr/bin/env node src/server.js
+Restart=on-failure
+RestartSec=3
+
+# ── Härtung ────────────────────────────────────────────────────────────────
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+# /opt bleibt schreibbar (data/settings.json), /usr /boot /etc read-only.
+ProtectSystem=full
+# Nur das data/-Verzeichnis muss beschreibbar sein.
+ReadWritePaths=/opt/hammerschlag-lieferstatus/data
+
+[Install]
+WantedBy=multi-user.target
