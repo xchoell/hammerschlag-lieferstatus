@@ -82,6 +82,18 @@ docker compose up -d --build
 In beiden Fällen gehört ein Reverse-Proxy mit TLS davor und `TRUST_PROXY=1`
 (korrektes Rate-Limiting + `Secure`-Cookie hinter dem Proxy).
 
+## Voraussichtlicher Liefertag
+
+Der angezeigte Liefertag folgt einer festen Priorität (erste vorhandene Quelle gewinnt):
+
+1. **Zugestellt** → tatsächliches Datum vom Carrier (Label „Zugestellt am").
+2. **Wunschlieferdatum** (`desiredDeliveryDate` aus dem Auftrag) → „Wunschliefertermin".
+3. **Carrier-Voraussichtlich** → falls die Carrier-API ein ETA liefert → „Voraussichtlicher Liefertag".
+4. **Berechnet**: Auftragsdatum + *X Werktage* (Mo–Fr, **ohne Feiertage**) → „… (geschätzt)".
+   Aktiv nur, wenn `EXPECTED_DELIVERY_WORKING_DAYS` > 0 (auch über `/admin` einstellbar).
+
+Ist keine Quelle verfügbar, wird kein Liefertag angezeigt.
+
 ## Settings-Page (`/admin`)
 
 Passwortgeschützte Oberfläche zum Ändern der Einstellungen **zur Laufzeit** –

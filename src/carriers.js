@@ -36,7 +36,7 @@ export async function getCarrierDeliveryState({ carrierCode, trackingNumber, zip
 }
 
 function unknownState(note) {
-  return { delivered: null, statusText: null, deliveredAt: null, note: note || null };
+  return { delivered: null, statusText: null, deliveredAt: null, estimatedDeliveryAt: null, note: note || null };
 }
 
 // ── DHL Shipment Tracking - Unified API ────────────────────────────────────
@@ -73,13 +73,24 @@ async function trackDhl({ trackingNumber, zip, carrierCode }) {
   }
 
   const json = await res.json();
-  const st = json?.shipments?.[0]?.status;
+  const sh0 = json?.shipments?.[0];
+  const st = sh0?.status;
   const code = String(st?.statusCode || st?.status || '').toLowerCase();
   const delivered = /delivered|zugestellt/.test(code);
+  // Voraussichtliches Lieferdatum, falls DHL es liefert (best effort - Feldname
+  // je nach Produkt unterschiedlich; null = nicht vorhanden -> Fallback greift).
+  const estimatedDeliveryAt = delivered
+    ? null
+    : sh0?.estimatedTimeOfDelivery ||
+      sh0?.estimatedDeliveryTimeFrame?.estimatedThrough ||
+      sh0?.estimatedDeliveryTimeFrame?.estimatedFrom ||
+      sh0?.details?.estimatedDeliveryDate ||
+      null;
   const value = {
     delivered,
     statusText: st?.status || st?.description || null,
     deliveredAt: delivered ? st?.timestamp || null : null,
+    estimatedDeliveryAt,
     note: null,
   };
   dhlCache.set(cacheKey, { at: Date.now(), value });

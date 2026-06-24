@@ -169,9 +169,16 @@ async function assembleStatus(candidate, zip) {
   if (shipped) stage = 2; // versendet / Tracking vorhanden -> Versendet
   if (delivered && shipped) stage = 3; // Carrier bestätigt -> Zugestellt
 
-  // Liefertag: bei Zustellung das Carrier-Datum, sonst der geplante Liefertag.
-  const deliveryDate =
-    delivered && deliveredAt ? deliveredAt : f.deliveryDate(order) || f.deliveryDate(record) || null;
+  // Liefertag nach Priorität: zugestellt (Carrier-Ist) > Wunschlieferdatum >
+  // Carrier-Voraussichtlich > berechnet (Auftragsdatum + x Werktage).
+  const carrierEta = states.find((st) => st && st.estimatedDeliveryAt)?.estimatedDeliveryAt || null;
+  const { date: deliveryDate, kind: deliveryDateKind } = resolveDeliveryDate({
+    delivered,
+    deliveredAt,
+    order,
+    record,
+    carrierEta,
+  });
 
   // Empfängername + Lieferadresse - bevorzugt aus dem Lieferschein.
   const recipientName = f.recipientName(notes[0]) || f.recipientName(order) || f.recipientName(record) || '';
@@ -185,9 +192,46 @@ async function assembleStatus(candidate, zip) {
     stage,
     stageLabel: cancelled ? 'Auftrag storniert' : STAGES[stage],
     deliveryDate,
+    deliveryDateKind,
     packageCount: packageCount || shipments.length,
     shipments,
   };
+}
+
+// Liefertag-Priorität. Gibt { date, kind } zurück; kind steuert das Label.
+//   delivered : tatsächliches Zustelldatum vom Carrier
+//   wish      : Wunschlieferdatum (desiredDeliveryDate vom Auftrag)
+//   carrier   : voraussichtliches Datum aus der Carrier-API
+//   estimated : berechnet aus Auftragsdatum + x Werktage (Einstellung)
+function resolveDeliveryDate({ delivered, deliveredAt, order, record, carrierEta }) {
+  if (delivered && deliveredAt) return { date: deliveredAt, kind: 'delivered' };
+
+  const wish = f.wishDate(order) || f.wishDate(record);
+  if (wish) return { date: wish, kind: 'wish' };
+
+  if (carrierEta) return { date: carrierEta, kind: 'carrier' };
+
+  const days = config.expectedDeliveryWorkingDays;
+  if (days > 0) {
+    const computed = addWorkingDays(f.orderDate(order) || f.orderDate(record), days);
+    if (computed) return { date: computed, kind: 'estimated' };
+  }
+  return { date: null, kind: null };
+}
+
+// Datum + n Werktage (Mo–Fr; Feiertage werden NICHT berücksichtigt).
+// Gibt ISO-Datum (YYYY-MM-DD) zurück oder null.
+function addWorkingDays(isoDate, n) {
+  if (!isoDate || !(n > 0)) return null;
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return null;
+  let added = 0;
+  while (added < n) {
+    d.setDate(d.getDate() + 1);
+    const day = d.getDay(); // 0 = So, 6 = Sa
+    if (day !== 0 && day !== 6) added += 1;
+  }
+  return d.toISOString().slice(0, 10);
 }
 
 // Carrier-Code (z. B. "dhl_1") in einen lesbaren Namen wandeln.
