@@ -4,12 +4,15 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import multer from 'multer';
 import { config, assertConfig } from './config.js';
 import { lookupStatus } from './lookup.js';
 import { loadSettings, viewSettings, saveSettings } from './settings.js';
+import { loadLogo, currentLogo, saveLogo, removeLogo, MAX_BYTES } from './logo.js';
 import { renderForm, renderResult, renderNotFound, renderLogin, renderSettings } from './views.js';
 
 loadSettings(); // persistierte Overrides aus data/settings.json anwenden
+loadLogo(); // ggf. hochgeladenes Logo reaktivieren (überschreibt brand.logoUrl)
 assertConfig();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -106,6 +109,20 @@ function liveWarning() {
   return null;
 }
 
+// Logo-Upload: nur im Speicher, hartes 1-MB-Limit (multer bricht darüber ab).
+const logoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_BYTES } });
+function parseAdminPost(req, res, next) {
+  if (!isAuthed(req)) return next(); // Unauth -> Route gibt 401, kein Parsen nötig
+  logoUpload.single('logo')(req, res, (err) => {
+    if (err)
+      req.logoError =
+        err.code === 'LIMIT_FILE_SIZE'
+          ? 'Logo ist zu groß – maximal 1 MB erlaubt.'
+          : 'Logo-Upload fehlgeschlagen.';
+    next();
+  });
+}
+
 const loginLimiter = rateLimit({
   windowMs: 60_000,
   max: 10,
@@ -113,6 +130,16 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   handler: (_req, res) =>
     res.status(429).send(renderLogin({ error: 'Zu viele Versuche. Bitte kurz warten.' })),
+});
+
+// Hochgeladenes Logo ausliefern (CSP imgSrc 'self' erlaubt das).
+app.get('/brand/logo', (_req, res) => {
+  const logo = currentLogo();
+  if (!logo) return res.status(404).end();
+  res.type(logo.mime);
+  res.sendFile(logo.file, { headers: { 'Cache-Control': 'public, max-age=300' } }, (err) => {
+    if (err && !res.headersSent) res.status(404).end();
+  });
 });
 
 app.get('/admin', (req, res) => {
@@ -126,10 +153,13 @@ app.post('/admin/login', loginLimiter, (req, res) => {
   res.setHeader('Set-Cookie', makeCookie());
   res.redirect('/admin');
 });
-app.post('/admin', (req, res) => {
+app.post('/admin', parseAdminPost, (req, res) => {
   if (!isAuthed(req)) return res.status(401).send(renderLogin({ error: 'Bitte zuerst anmelden.' }));
   saveSettings(req.body || {});
-  res.send(renderSettings(viewSettings(), { saved: true, warning: liveWarning() }));
+  let error = req.logoError || null;
+  if (!error && req.file) error = saveLogo(req.file.buffer);
+  else if (!error && req.body?.removeLogo) removeLogo();
+  res.send(renderSettings(viewSettings(), { saved: !error, error, warning: liveWarning() }));
 });
 app.post('/admin/logout', (req, res) => {
   res.setHeader('Set-Cookie', 'admin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
