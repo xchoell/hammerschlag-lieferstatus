@@ -54,6 +54,11 @@ function layout(title, body) {
   .hint ul { margin: 6px 0 0; padding-left: 18px; }
   .err { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 13px;
     border-radius: 10px; padding: 10px 12px; margin-bottom: 16px; }
+  .ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; font-size: 13px;
+    border-radius: 10px; padding: 10px 12px; margin-bottom: 16px; }
+  .chk { display: flex; align-items: flex-start; gap: 8px; font-weight: 400; font-size: 14px; margin: 16px 0 0; }
+  .chk input { width: auto; height: auto; margin-top: 2px; }
+  button.ghost { background: transparent; color: #6b7280; border: 1px solid #d1d5db; margin-top: 10px; }
   .statusline { display: flex; align-items: center; gap: 8px; margin: 6px 0 18px; }
   .statusline .dot { font-size: 22px; }
   .statusline b { font-size: 18px; }
@@ -177,5 +182,53 @@ export function renderResult(s) {
     ${eta}
     ${tracking}
     <a class="back" href="/">← Andere Bestellung suchen</a>`,
+  );
+}
+
+export function renderLogin({ error } = {}) {
+  return layout(
+    'Login',
+    `
+    <h1>Einstellungen</h1>
+    <p class="sub">Bitte mit dem Admin-Kennwort anmelden.</p>
+    ${error ? `<div class="err">${esc(error)}</div>` : ''}
+    <form method="post" action="/admin/login" autocomplete="off">
+      <label for="password">Kennwort</label>
+      <input id="password" name="password" type="password" required autofocus />
+      <button type="submit">Anmelden</button>
+    </form>`,
+  );
+}
+
+export function renderSettings(fields, { saved, warning } = {}) {
+  const rows = fields
+    .map((field) => {
+      const name = field.key.replace(/\./g, '__');
+      if (field.type === 'bool') {
+        return `<label class="chk"><input type="checkbox" name="${name}" ${field.value ? 'checked' : ''} /> <span>${esc(field.label)}</span></label>`;
+      }
+      const isSecret = field.type === 'secret';
+      const ph = isSecret
+        ? field.isSet
+          ? '•••••••• gesetzt – leer lassen = unverändert'
+          : 'nicht gesetzt'
+        : field.hint || '';
+      return `<label for="${name}">${esc(field.label)}</label>
+      <input id="${name}" name="${name}" type="${isSecret ? 'password' : 'text'}" value="${isSecret ? '' : esc(field.value)}" placeholder="${esc(ph)}" autocomplete="off" />`;
+    })
+    .join('');
+
+  return layout(
+    'Einstellungen',
+    `
+    <h1>Einstellungen</h1>
+    <p class="sub">Änderungen wirken sofort und werden gespeichert.</p>
+    ${saved ? '<div class="ok">Gespeichert.</div>' : ''}
+    ${warning ? `<div class="err">${esc(warning)}</div>` : ''}
+    <form method="post" action="/admin" autocomplete="off">
+      ${rows}
+      <button type="submit">Speichern</button>
+    </form>
+    <form method="post" action="/admin/logout"><button type="submit" class="ghost">Abmelden</button></form>`,
   );
 }

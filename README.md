@@ -74,6 +74,22 @@ Davor gehört ein Reverse-Proxy mit TLS (Caddy/Nginx/Traefik) auf z. B.
 `status.hammerschlag.de`. `TRUST_PROXY=1` ist im Compose-File schon gesetzt (für korrektes
 Rate-Limiting hinter dem Proxy).
 
+## Settings-Page (`/admin`)
+
+Passwortgeschützte Oberfläche zum Ändern der Einstellungen **zur Laufzeit** –
+kein Server-Neustart, kein `.env`-Editieren nötig.
+
+- Aufruf: `https://<host>/admin`, Kennwort aus `ADMIN_PASSWORD`
+  (Default `Xentral123!` – **fürs Deployment unbedingt ändern**).
+- Editierbar: Xentral Basis-URL, **PAT**, **DHL API Key**, DHL Service-Code,
+  Fallback-Schalter, Mock-Modus, Firmenname, Support-Mail, Akzentfarbe.
+- Persistenz: `data/settings.json` (gitignored, enthält Secrets) – überlagert die
+  `.env`-Defaults und überlebt Neustarts.
+- Sicherheit: Login per signiertem HttpOnly-Cookie (`SameSite=Strict`, TTL
+  `ADMIN_SESSION_TTL_MS`), Brute-Force-Limit am Login, **Secrets werden nie ins
+  Formular zurückgeschrieben** (leeres Feld = unverändert), Kennwortvergleich
+  timing-sicher.
+
 ## Identifier-Mapping (Nummer → API-Filter)
 
 | Kunde tippt | v3-Filter-Key | Endpoint |

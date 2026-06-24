@@ -41,18 +41,25 @@ export const config = {
   // "Zugestellt" wird per Carrier-API bestimmt. Optionaler Fallback auf den
   // ERP-Auftragsstatus, NUR wenn der Carrier nicht abfragbar ist (Default aus).
   deliveredFallbackOnOrderStatus: bool(process.env.DELIVERED_FALLBACK_ON_ORDER_STATUS, false),
+  // Settings-Page (Admin).
+  admin: {
+    password: process.env.ADMIN_PASSWORD || 'Xentral123!',
+    sessionTtlMs: int(process.env.ADMIN_SESSION_TTL_MS, 8 * 60 * 60 * 1000),
+  },
 };
 
-// Beim echten Betrieb (kein Mock) müssen Basis-URL und Token gesetzt sein.
+// Im Live-Betrieb sollten Basis-URL und Token gesetzt sein. Wir werfen NICHT
+// (sonst wäre die Settings-Page bei Fehlkonfiguration nicht erreichbar),
+// sondern warnen - Lookups schlagen dann sauber fehl, bis konfiguriert.
 export function assertConfig() {
   if (config.useMock) return;
   const missing = [];
-  if (!config.xentral.baseUrl) missing.push('XENTRAL_BASE_URL');
-  if (!config.xentral.token) missing.push('XENTRAL_API_TOKEN');
+  if (!config.xentral.baseUrl) missing.push('Basis-URL');
+  if (!config.xentral.token) missing.push('PAT');
   if (missing.length) {
-    throw new Error(
-      `Fehlende Konfiguration: ${missing.join(', ')}. ` +
-        `Setze sie in .env oder starte mit USE_MOCK=true.`,
+    console.warn(
+      `[config] Live-Modus, aber fehlt: ${missing.join(', ')}. ` +
+        `Über /admin nachtragen oder USE_MOCK=true setzen.`,
     );
   }
 }
