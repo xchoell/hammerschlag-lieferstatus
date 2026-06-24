@@ -15,6 +15,8 @@ export const EDITABLE = [
   { key: 'dhl.apiKey', label: 'DHL API Key', type: 'secret' },
   { key: 'dhl.service', label: 'DHL Service-Code', type: 'text', hint: 'parcel-de, express, parcel-nl …' },
   { key: 'expectedDeliveryWorkingDays', label: 'Voraussichtl. Liefertag: Werktage nach Auftragsanlage (0 = aus)', type: 'number', hint: 'z. B. 3 – nur Fallback, wenn kein Wunsch-/Carrier-Datum vorliegt' },
+  { key: 'deliveryOverdue.enabled', label: '„Lieferdatum überschritten"-Hinweis aktiv', type: 'bool' },
+  { key: 'deliveryOverdue.days', label: 'Hinweis nach X Tagen Überschreitung', type: 'number', hint: '0 = sobald der voraussichtliche Liefertag vorbei ist' },
   { key: 'deliveredFallbackOnOrderStatus', label: '„Zugestellt" notfalls aus ERP-Status ableiten (Demo, ohne DHL-Key)', type: 'bool' },
   { key: 'useMock', label: 'Mock-Modus (Demo-Daten statt echter Instanz)', type: 'bool' },
   { key: 'brand.name', label: 'Firmenname', type: 'text' },

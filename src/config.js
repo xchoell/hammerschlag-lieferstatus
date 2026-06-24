@@ -47,6 +47,13 @@ export const config = {
   // Voraussichtlicher Liefertag als Fallback: Auftragsdatum + x Werktage.
   // 0 = aus. Greift nur, wenn weder Wunschlieferdatum noch Carrier-Datum vorliegt.
   expectedDeliveryWorkingDays: int(process.env.EXPECTED_DELIVERY_WORKING_DAYS, 0),
+  // "Lieferdatum überschritten"-Hinweis: aktiv + Karenz in Kalendertagen.
+  // Zeigt einen Kontakt-Hinweis, wenn der voraussichtliche Liefertag + Karenz
+  // überschritten ist und die Sendung noch nicht zugestellt wurde.
+  deliveryOverdue: {
+    enabled: bool(process.env.DELIVERY_OVERDUE_ENABLED, false),
+    days: int(process.env.DELIVERY_OVERDUE_DAYS, 0),
+  },
   // Settings-Page (Admin).
   admin: {
     password: process.env.ADMIN_PASSWORD || 'Xentral123!',
