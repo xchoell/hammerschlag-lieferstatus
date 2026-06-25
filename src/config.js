@@ -22,7 +22,7 @@ export const config = {
   // Standardmäßig nur lokal lauschen (hinter Reverse-Proxy). Für direkten
   // Zugriff (z. B. Docker) HOST=0.0.0.0 setzen.
   host: process.env.HOST || '127.0.0.1',
-  useMock: bool(process.env.USE_MOCK, true),
+  useMock: bool(process.env.USE_MOCK, false),
   trustProxy: bool(process.env.TRUST_PROXY, false),
   rateLimit: {
     windowMs: int(process.env.RATE_LIMIT_WINDOW_MS, 60_000),
