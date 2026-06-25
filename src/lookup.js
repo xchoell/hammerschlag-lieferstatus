@@ -6,7 +6,7 @@ import {
   f,
 } from './xentral.js';
 import { config } from './config.js';
-import { getCarrierDeliveryState } from './carriers.js';
+import { getCarrierDeliveryState, detectCarrier } from './carriers.js';
 import { mockLookup } from './mock.js';
 
 // Die vier Kunden-Stufen, die auf der Seite angezeigt werden.
@@ -215,11 +215,14 @@ async function buildPart({ order = null, fallbackNote = null, zip }) {
     for (const s of raw) {
       const extras = Array.isArray(s.additionalPackages) ? s.additionalPackages.length : 0;
       packageCount += 1 + extras;
+      const carrierCode = f.carrier(s) || null;
+      const trackingNumber = f.trackingNumber(s) || null;
       shipments.push({
-        carrier: prettyCarrier(f.carrier(s)),
-        carrierCode: f.carrier(s) || null,
-        trackingNumber: f.trackingNumber(s) || null,
-        trackingLink: f.trackingLink(s) || null,
+        carrier: prettyCarrier(carrierCode),
+        carrierCode,
+        trackingNumber,
+        // Xentral-Link bevorzugen; sonst aus Carrier + Nummer selbst erzeugen.
+        trackingLink: f.trackingLink(s) || carrierTrackingUrl(carrierCode, trackingNumber),
         shippedAt: f.shippedAt(s) || null,
       });
     }
@@ -371,6 +374,32 @@ function addWorkingDays(isoDate, n) {
     if (day !== 0 && day !== 6) added += 1;
   }
   return d.toISOString().slice(0, 10);
+}
+
+// Tracking-Link aus Carrier + Sendungsnummer erzeugen, wenn Xentral keinen liefert.
+// Liefert null für unbekannte Carrier oder fehlende Nummer -> dann kein Button.
+function carrierTrackingUrl(carrierCode, trackingNumber) {
+  if (!trackingNumber) return null;
+  const n = encodeURIComponent(trackingNumber);
+  const isExpress = String(carrierCode || '').toLowerCase().startsWith('dhlexpress');
+  switch (detectCarrier(carrierCode)) {
+    case 'dhl':
+      return isExpress
+        ? `https://www.dhl.com/de-de/home/tracking/tracking-express.html?submit=1&tracking-id=${n}`
+        : `https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${n}`;
+    case 'dpd':
+      return `https://tracking.dpd.de/status/de_DE/parcel/${n}`;
+    case 'gls':
+      return `https://gls-group.com/DE/de/paketverfolgung?match=${n}`;
+    case 'ups':
+      return `https://www.ups.com/track?loc=de_DE&tracknum=${n}`;
+    case 'hermes':
+      return `https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation/#${n}`;
+    case 'fedex':
+      return `https://www.fedex.com/fedextrack/?trknbr=${n}`;
+    default:
+      return null;
+  }
 }
 
 // Carrier-Code (z. B. "dhl_1") in einen lesbaren Namen wandeln.
