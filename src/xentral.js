@@ -95,7 +95,7 @@ function pickAddress(record, paths) {
   return null;
 }
 
-const ADDRESS_PATHS = ['documentAddress', 'effectiveAddresses.shipTo', 'deviatingShipToAddress', 'address'];
+const ADDRESS_PATHS = ['effectiveAddresses.shipTo', 'deviatingShipToAddress', 'documentAddress', 'address'];
 
 // Liest ein Feld aus dem Record - flach ODER unter attributes - über mehrere
 // mögliche Pfade hinweg. Erster nicht-leerer Treffer gewinnt.
@@ -129,6 +129,21 @@ export const f = {
       'address.zipCode',
       'zipCode',
     ]),
+
+  // Alle PLZ des Records (Liefer- UND Rechnungsadresse) für den Zweifaktor-Check.
+  // Kunde kann beide eingeben: entweder die abweichende Lieferadresse oder die Stamm-PLZ.
+  allZips: (r) => {
+    const paths = [
+      'effectiveAddresses.shipTo.zipCode',
+      'deviatingShipToAddress.zipCode',
+      'effectiveAddresses.soldTo.zipCode',
+      'documentAddress.zipCode',
+      'deliveryAddress.zipCode',
+      'address.zipCode',
+      'zipCode',
+    ];
+    return [...new Set(paths.map((p) => pick(r, [p])).filter(Boolean))];
+  },
 
   // Geplanter Liefertag.
   deliveryDate: (r) =>
