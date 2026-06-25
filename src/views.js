@@ -209,9 +209,41 @@ function addressHtml(a, { deviating = false } = {}) {
     .join('')}</div>`;
 }
 
+<<<<<<< Updated upstream
 // Verlauf eines normalen Auftrags (4 Stufen).
 function normalStepsHtml(s) {
   return STAGES.map((name, i) => {
+=======
+// Stornierte Aufträge: eigener 2-Stufen-Verlauf, kein ETA/Tracking.
+function renderCancelled(s) {
+  const stepsHtml = CANCELLED_STAGES.map((name, i) => {
+    const isLast = i === CANCELLED_STAGES.length - 1;
+    const cls = i === 0 ? 'done' : 'cancelled';
+    const bullet = i === 0 ? '✓' : '✕';
+    return `<div class="step ${cls}">
+      <div class="rail"><div class="bullet">${bullet}</div>${isLast ? '' : '<div class="line"></div>'}</div>
+      <div class="txt"><b>${esc(name)}</b></div>
+    </div>`;
+  }).join('');
+
+  return layout(
+    `Bestellung ${s.orderNumber}`,
+    `
+    ${greetingHtml(s.recipientName)}
+    <p class="sub">Bestellung ${esc(s.orderNumber)}</p>
+    <div class="statusline"><span class="dot">🚫</span><b>Auftrag storniert</b></div>
+    <div class="steps">${stepsHtml}</div>
+    <div class="err">Dieser Auftrag wurde storniert. Bei Fragen wende dich bitte an deinen Ansprechpartner${brand.supportEmail ? ` (${esc(brand.supportEmail)})` : ''}.</div>
+    ${addressHtml(s.deliveryAddress)}
+    <a class="back" href="/">← Andere Bestellung verfolgen</a>`,
+  );
+}
+
+export function renderResult(s) {
+  if (s.cancelled) return renderCancelled(s);
+
+  const stepsHtml = STAGES.map((name, i) => {
+>>>>>>> Stashed changes
     const isLast = i === STAGES.length - 1;
     // Die erreichte Endstufe (Zugestellt) gilt als abgeschlossen -> Haken, nicht "aktuell".
     const reached = i < s.stage || (i === s.stage && isLast);
@@ -305,6 +337,7 @@ function renderSingle(result, s) {
     `
     ${greetingHtml(result.recipientName)}
     <p class="sub">Bestellung ${esc(s.orderNumber)}</p>
+<<<<<<< Updated upstream
     ${partStatusBlock(s)}
     <a class="back" href="/">← Andere Bestellung suchen</a>`,
   );
@@ -346,6 +379,15 @@ function renderGroup(result, parts) {
     <div class="group-summary">${esc(summary)}</div>
     ${partsHtml}
     <a class="back" href="/">← Andere Bestellung suchen</a>`,
+=======
+    <div class="statusline"><span class="dot">${icon}</span><b>${esc(STAGES[s.stage] ?? s.stageLabel)}</b></div>
+    ${overdueHtml}
+    <div class="steps">${stepsHtml}</div>
+    ${eta}
+    ${addressHtml(s.deliveryAddress)}
+    ${tracking}
+    <a class="back" href="/">← Andere Bestellung verfolgen</a>`,
+>>>>>>> Stashed changes
   );
 }
 
