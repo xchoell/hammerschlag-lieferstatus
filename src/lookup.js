@@ -69,23 +69,19 @@ async function resolveCandidate(query, zip) {
   return null;
 }
 
-// Zweiter Faktor: PLZ muss zur Lieferadresse passen. Vergleich in Code (nicht
-// per API-Filter), damit "abweichende vs. Standard-Lieferadresse" sauber
-// abgedeckt ist. Fail-closed: ist nirgends eine PLZ auffindbar, gilt es als
-// nicht verifiziert (Feldnamen ggf. via `npm run probe` anpassen).
+// Zweiter Faktor: PLZ muss zu einer bekannten Adresse des Auftrags passen.
+// Akzeptiert sowohl die Liefer- als auch die Rechnungs-PLZ, damit Aufträge mit
+// abweichender Lieferadresse über die Stamm-PLZ gefunden werden können.
+// Fail-closed: ist nirgends eine PLZ auffindbar, gilt es als nicht verifiziert.
 async function zipMatches(type, record, zip) {
-  const zips = [];
-  const ownZip = f.deliveryZip(record);
-  if (ownZip) zips.push(ownZip);
+  const zips = f.allZips(record);
 
-  // Für Aufträge zusätzlich die PLZ der zugehörigen Lieferscheine prüfen
-  // (dort steht die tatsächliche Versandadresse).
-  if (type === 'salesOrder' && !ownZip) {
+  // Für Aufträge zusätzlich die PLZ der zugehörigen Lieferscheine prüfen.
+  if (type === 'salesOrder' && zips.length === 0) {
     try {
       const notes = await listDeliveryNotesForOrder(f.id(record));
       for (const n of notes) {
-        const z = f.deliveryZip(n);
-        if (z) zips.push(z);
+        zips.push(...f.allZips(n));
       }
     } catch {
       /* ignorieren - dann bleibt zips ggf. leer */
