@@ -46,8 +46,10 @@ function equalsFilter(pairs, page = { size: 5, number: 1 }) {
 
 // Liste Sales Orders (v3). Scope: salesOrder:read
 // https://developer.xentral.com/reference/getapi-v3-salesorders
-export async function listSalesOrders(key, value) {
-  const json = await xentralRequest('/api/v3/salesOrders', equalsFilter([[key, value]]));
+// `page` optional: für die Teilauftrags-Gruppierung wird eine größere Seite
+// gebraucht (mehrere Aufträge mit derselben Referenz).
+export async function listSalesOrders(key, value, page) {
+  const json = await xentralRequest('/api/v3/salesOrders', equalsFilter([[key, value]], page));
   return json.data || [];
 }
 
@@ -118,6 +120,14 @@ export const f = {
   status: (r) => pick(r, ['status', 'state', 'documentStatus']),
   documentNumber: (r) => pick(r, ['documentNumber', 'number', 'belegnr']),
 
+  // Referenznummern, über die zusammengehörige Teilaufträge verknüpft sein
+  // können (Fallback zur Belegnummer-Basis). + Kundennummer als Sicherheitsnetz.
+  customerOrderNumber: (r) =>
+    pick(r, ['customerOrderNumber', 'customerOrderNo', 'orderNumberCustomer', 'customerReference']),
+  externalOrderNumber: (r) =>
+    pick(r, ['externalOrderNumber', 'internetOrderNumber', 'shopOrderNumber', 'externalReference']),
+  customerNumber: (r) => pick(r, ['customerNumber']),
+
   // Liefer-PLZ (zur serverseitigen Prüfung des zweiten Faktors).
   // effectiveAddresses.shipTo = tatsächliche Versandadresse (deckt abweichende ab).
   deliveryZip: (r) =>
@@ -161,6 +171,10 @@ export const f = {
 
   // Lieferadresse (komplettes Objekt) + Name des Empfängers/Bestellers.
   deliveryAddress: (r) => pickAddress(r, ADDRESS_PATHS),
+
+  // Explizit abweichende Lieferadresse (nur gesetzt, wenn sie von der
+  // Dokument-/Stammadresse abweicht). Liefert das Adress-Objekt oder null.
+  deviatingAddress: (r) => pickAddress(r, ['deviatingShipToAddress']),
   recipientName: (r) => {
     const a = pickAddress(r, ADDRESS_PATHS) || {};
     return a.contactPerson || a.name || '';
