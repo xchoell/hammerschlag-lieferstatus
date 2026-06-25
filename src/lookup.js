@@ -44,7 +44,7 @@ export async function lookupStatus(rawQuery, rawZip) {
 
   const candidate = await resolveCandidate(query, zip);
   if (!candidate) return null;
-  return assembleStatus(candidate, zip);
+  return assembleGroup(candidate, zip);
 }
 
 // Probiert die Strategien durch, prüft den zweiten Faktor (PLZ) serverseitig
@@ -98,23 +98,113 @@ async function zipMatches(type, record, zip) {
   return zips.some((z) => normZip(z) === zip);
 }
 
-// Baut aus dem Treffer das anzeigbare Status-Objekt zusammen.
-async function assembleStatus(candidate, zip) {
+// Baut aus dem Treffer die komplette Auftragsgruppe zusammen: den getroffenen
+// Auftrag PLUS alle gesplitteten Teilaufträge desselben Ursprungsauftrags.
+async function assembleGroup(candidate, zip) {
+  const orders = await resolveGroupOrders(candidate);
+
+  // Fallback: Lieferschein-Treffer ohne ladbaren Elternauftrag -> Einzel-Teil
+  // direkt aus dem Lieferschein bauen.
+  if (orders.length === 0) {
+    const part = await buildPart({ fallbackNote: candidate.record, zip });
+    return finalizeGroup([part], null);
+  }
+
+  const parts = [];
+  for (const order of orders) {
+    parts.push(await buildPart({ order, zip }));
+  }
+
+  // Gruppen-Überschrift: gemeinsame Referenz, sonst die Belegnummer-Basis
+  // (z. B. "200039" für die Teilaufträge 200039 + 200039-1).
+  const groupNumber =
+    f.customerOrderNumber(orders[0]) ||
+    f.externalOrderNumber(orders[0]) ||
+    docBase(f.documentNumber(orders[0])) ||
+    null;
+  return finalizeGroup(parts, groupNumber);
+}
+
+// Belegnummer-Basis: entfernt das Splitt-Suffix "-N" (200039-1 -> 200039).
+function docBase(documentNumber) {
+  return String(documentNumber ?? '').replace(/-\d+$/, '');
+}
+
+// Splits gehören immer demselben Kunden. Fehlt eine Kundennummer, wird nicht
+// blockiert (fail-open); bei Abweichung NICHT gruppieren (fail-closed).
+function sameCustomer(a, b) {
+  const ca = f.customerNumber(a);
+  const cb = f.customerNumber(b);
+  return !ca || !cb || String(ca) === String(cb);
+}
+
+// Ermittelt alle Aufträge der Gruppe. Verankert beim getroffenen Auftrag
+// (bzw. dem Elternauftrag eines Lieferschein-Treffers).
+//
+// Verknüpfungs-Strategien (gegen die echte Instanz verifiziert, npm run probe):
+//   1. Belegnummer-Basis: gesplittete Teilaufträge tragen das Suffix "-N"
+//      (200039 -> 200039-1). Das ist hier der verlässliche Split-Link.
+//   2. Gemeinsame Bestell-/Internetnummer (Fallback, falls befüllt).
+// Sicherheitsnetz: nur Aufträge derselben Kundennummer werden gruppiert.
+async function resolveGroupOrders(candidate) {
   const { type, record } = candidate;
 
-  let order = type === 'salesOrder' ? record : null;
-  let notes = [];
+  let anchor = null;
   if (type === 'salesOrder') {
-    notes = await safe(() => listDeliveryNotesForOrder(f.id(record)), []);
+    anchor = record;
   } else {
-    notes = [record];
-    // Elternauftrag nachladen, damit Status/Liefertag konsistent zum
-    // Auftragsnummer-Pfad sind (sonst zeigt LS-Lookup "Versendet" statt "Zugestellt").
     const soId = record.salesOrder?.id ?? record.attributes?.salesOrder?.id;
     if (soId) {
       const orders = await safe(() => listSalesOrders('id', soId), []);
-      order = orders[0] || null;
+      anchor = orders[0] || null;
     }
+    if (!anchor) return []; // -> Fallback aus dem Lieferschein
+  }
+
+  const byId = new Map();
+  const add = (o) => {
+    const id = f.id(o);
+    if (id != null && !byId.has(id) && sameCustomer(anchor, o)) byId.set(id, o);
+  };
+  add(anchor);
+
+  // Strategie 1: Belegnummer-Basis + Teilaufträge -1, -2, ... (bis zur Lücke).
+  const base = docBase(f.documentNumber(anchor));
+  if (base) {
+    const baseOrders = await safe(() => listSalesOrders('documentNumber', base), []);
+    baseOrders.forEach(add);
+    for (let i = 1; i <= 30; i++) {
+      const partOrders = await safe(() => listSalesOrders('documentNumber', `${base}-${i}`), []);
+      if (partOrders.length === 0) break; // sequentiell vergeben -> erste Lücke beendet
+      partOrders.forEach(add);
+    }
+  }
+
+  // Strategie 2: gemeinsame Bestell-/Internetnummer (nur falls befüllt).
+  for (const field of ['customerOrderNumber', 'externalOrderNumber']) {
+    const value =
+      field === 'customerOrderNumber' ? f.customerOrderNumber(anchor) : f.externalOrderNumber(anchor);
+    if (!value) continue;
+    const siblings = await safe(() => listSalesOrders(field, value, { size: 50, number: 1 }), []);
+    siblings.forEach(add);
+  }
+
+  // Stabile, nachvollziehbare Reihenfolge nach Belegnummer.
+  return [...byId.values()].sort((a, b) =>
+    String(f.documentNumber(a) ?? '').localeCompare(String(f.documentNumber(b) ?? ''), 'de', {
+      numeric: true,
+    }),
+  );
+}
+
+// Baut den anzeigbaren Status EINES Auftrags (= ein Teilauftrag der Gruppe).
+async function buildPart({ order = null, fallbackNote = null, zip }) {
+  const record = order || fallbackNote;
+  let notes = [];
+  if (order) {
+    notes = await safe(() => listDeliveryNotesForOrder(f.id(order)), []);
+  } else if (fallbackNote) {
+    notes = [fallbackNote];
   }
 
   // Sendungen über alle Lieferscheine einsammeln.
@@ -176,9 +266,19 @@ async function assembleStatus(candidate, zip) {
     carrierEta,
   });
 
-  // Empfängername + Lieferadresse - bevorzugt aus dem Lieferschein.
-  const recipientName = f.recipientName(notes[0]) || f.recipientName(order) || f.recipientName(record) || '';
-  const deliveryAddress = f.deliveryAddress(notes[0]) || f.deliveryAddress(order) || f.deliveryAddress(record);
+  // Empfängername + Lieferadresse - bevorzugt aus dem AUFTRAG, damit die
+  // (ggf. abweichende) Lieferadresse des jeweiligen Teilauftrags sichtbar bleibt.
+  // Der Lieferschein dient nur als Fallback (z. B. wenn der Auftrag keine Adresse trägt).
+  const recipientName = f.recipientName(order) || f.recipientName(record) || f.recipientName(notes[0]) || '';
+  const deliveryAddress = f.deliveryAddress(order) || f.deliveryAddress(record) || f.deliveryAddress(notes[0]);
+
+  // Abweichende Lieferadresse explizit kennzeichnen, damit die View sie als
+  // solche labeln kann (Pflicht: muss als abweichend sichtbar sein).
+  const addressIsDeviating = !!(
+    f.deviatingAddress(order) ||
+    f.deviatingAddress(record) ||
+    f.deviatingAddress(notes[0])
+  );
 
   // "Lieferdatum überschritten"-Hinweis (optional).
   const overdue = isOverdue({ deliveryDate, deliveryDateKind, delivered, cancelled });
@@ -187,6 +287,7 @@ async function assembleStatus(candidate, zip) {
     orderNumber: f.documentNumber(order || record) || '',
     recipientName,
     deliveryAddress,
+    addressIsDeviating,
     cancelled,
     overdue,
     stage,
@@ -195,6 +296,26 @@ async function assembleStatus(candidate, zip) {
     deliveryDateKind,
     packageCount: packageCount || shipments.length,
     shipments,
+  };
+}
+
+// Fasst die Teilaufträge zur Gruppe zusammen, die an die View geht.
+// `parts` ist 1..n; isSplit steuert, ob die Teilauftrags-Ansicht gezeigt wird.
+// Empfänger/Adresse bleiben pro Teilauftrag erhalten (können je Split abweichen);
+// auf Gruppenebene wird der erste echte Treffer als Fallback gehalten.
+function finalizeGroup(parts, groupNumber) {
+  parts = parts.filter(Boolean);
+  if (parts.length === 0) return null;
+
+  const recipientName = parts.find((p) => p.recipientName)?.recipientName || '';
+  const deliveryAddress = parts.find((p) => p.deliveryAddress)?.deliveryAddress || null;
+
+  return {
+    groupNumber: groupNumber || parts[0].orderNumber,
+    isSplit: parts.length > 1,
+    recipientName,
+    deliveryAddress,
+    parts,
   };
 }
 

@@ -116,8 +116,18 @@ function layout(title, body) {
   .eta { background: #f9fafb; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
   .eta small { color: #6b7280; font-size: 11px; display: block; }
   .eta b { font-size: 15px; }
+  .eta--deviating { background: #fffbeb; border: 1px solid #fde68a; }
+  .eta--deviating small { color: #92400e; font-weight: 600; }
   .track { display: block; text-align: center; text-decoration: none; background: var(--accent);
     color: #fff; padding: 13px; border-radius: 10px; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .group-summary { font-size: 12px; color: #6b7280; margin: 0 0 16px; }
+  .part { border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 14px 4px; margin-bottom: 14px; }
+  .part-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+  .part-head b { font-size: 15px; }
+  .part-tag { font-size: 11px; font-weight: 600; color: #fff; background: var(--accent);
+    border-radius: 6px; padding: 2px 7px; flex: none; }
+  .part .statusline { margin: 0 0 14px; }
+  .part .statusline b { font-size: 16px; }
   .foot { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 16px; }
   .foot a { color: #6b7280; }
   a.back { display: inline-block; margin-top: 14px; font-size: 13px; color: #6b7280; }
@@ -185,9 +195,10 @@ function greetingHtml(name) {
     : '';
 }
 
-function addressHtml(a) {
+function addressHtml(a, { deviating = false } = {}) {
   if (!a) return '';
-  return `<div class="eta"><small>Lieferadresse</small>${[
+  const label = deviating ? 'Abweichende Lieferadresse' : 'Lieferadresse';
+  return `<div class="eta${deviating ? ' eta--deviating' : ''}"><small>${esc(label)}</small>${[
     a.name,
     a.contactPerson && a.contactPerson !== a.name ? a.contactPerson : null,
     a.street,
@@ -198,35 +209,9 @@ function addressHtml(a) {
     .join('')}</div>`;
 }
 
-// Stornierte Aufträge: eigener 2-Stufen-Verlauf, kein ETA/Tracking.
-function renderCancelled(s) {
-  const stepsHtml = CANCELLED_STAGES.map((name, i) => {
-    const isLast = i === CANCELLED_STAGES.length - 1;
-    const cls = i === 0 ? 'done' : 'cancelled';
-    const bullet = i === 0 ? '✓' : '✕';
-    return `<div class="step ${cls}">
-      <div class="rail"><div class="bullet">${bullet}</div>${isLast ? '' : '<div class="line"></div>'}</div>
-      <div class="txt"><b>${esc(name)}</b></div>
-    </div>`;
-  }).join('');
-
-  return layout(
-    `Bestellung ${s.orderNumber}`,
-    `
-    ${greetingHtml(s.recipientName)}
-    <p class="sub">Bestellung ${esc(s.orderNumber)}</p>
-    <div class="statusline"><span class="dot">🚫</span><b>Auftrag storniert</b></div>
-    <div class="steps">${stepsHtml}</div>
-    <div class="err">Dieser Auftrag wurde storniert. Bei Fragen wende dich bitte an deinen Ansprechpartner${brand.supportEmail ? ` (${esc(brand.supportEmail)})` : ''}.</div>
-    ${addressHtml(s.deliveryAddress)}
-    <a class="back" href="/">← Andere Bestellung suchen</a>`,
-  );
-}
-
-export function renderResult(s) {
-  if (s.cancelled) return renderCancelled(s);
-
-  const stepsHtml = STAGES.map((name, i) => {
+// Verlauf eines normalen Auftrags (4 Stufen).
+function normalStepsHtml(s) {
+  return STAGES.map((name, i) => {
     const isLast = i === STAGES.length - 1;
     // Die erreichte Endstufe (Zugestellt) gilt als abgeschlossen -> Haken, nicht "aktuell".
     const reached = i < s.stage || (i === s.stage && isLast);
@@ -242,22 +227,40 @@ export function renderResult(s) {
       <div class="txt"><b>${esc(name)}</b>${sub}</div>
     </div>`;
   }).join('');
+}
 
+// Verlauf eines stornierten Auftrags (eigener 2-Stufen-Verlauf).
+function cancelledStepsHtml() {
+  return CANCELLED_STAGES.map((name, i) => {
+    const isLast = i === CANCELLED_STAGES.length - 1;
+    const cls = i === 0 ? 'done' : 'cancelled';
+    const bullet = i === 0 ? '✓' : '✕';
+    return `<div class="step ${cls}">
+      <div class="rail"><div class="bullet">${bullet}</div>${isLast ? '' : '<div class="line"></div>'}</div>
+      <div class="txt"><b>${esc(name)}</b></div>
+    </div>`;
+  }).join('');
+}
+
+function etaHtml(s) {
   const etaLabels = {
     wish: 'Wunschliefertermin',
     carrier: 'Voraussichtlicher Liefertag',
     estimated: 'Voraussichtlicher Liefertag (geschätzt)',
   };
-  let eta = '';
   if (s.deliveryDate && s.deliveryDateKind === 'delivered') {
     // Zugestellt: nur das echte Carrier-Zustelldatum zeigen.
-    eta = `<div class="eta"><small>Zugestellt am</small><b>${fmtDate(s.deliveryDate)}</b></div>`;
-  } else if (s.deliveryDate && s.stage < 3) {
-    const label = etaLabels[s.deliveryDateKind] || 'Voraussichtlicher Liefertag';
-    eta = `<div class="eta"><small>${esc(label)}</small><b>${fmtDate(s.deliveryDate)}</b></div>`;
+    return `<div class="eta"><small>Zugestellt am</small><b>${fmtDate(s.deliveryDate)}</b></div>`;
   }
+  if (s.deliveryDate && s.stage < 3) {
+    const label = etaLabels[s.deliveryDateKind] || 'Voraussichtlicher Liefertag';
+    return `<div class="eta"><small>${esc(label)}</small><b>${fmtDate(s.deliveryDate)}</b></div>`;
+  }
+  return '';
+}
 
-  const tracking = s.shipments
+function trackingHtml(s) {
+  return s.shipments
     .filter((sh) => sh.trackingLink || sh.trackingNumber)
     .map((sh, i) => {
       const label = s.shipments.length > 1 ? `Paket ${i + 1} verfolgen` : 'Sendung live verfolgen';
@@ -265,24 +268,83 @@ export function renderResult(s) {
       return `<div class="eta"><small>Sendungsnummer ${esc(sh.carrier || '')}</small><b>${esc(sh.trackingNumber)}</b></div>`;
     })
     .join('');
+}
 
+// Kompletter Status-Block EINES (Teil-)Auftrags: Statuszeile + Verlauf + ETA +
+// Lieferadresse (direkt unter der Statushistorie) + Tracking.
+// Wird sowohl für den Einzelauftrag als auch je Teilauftrag der Gruppe genutzt.
+function partStatusBlock(s) {
+  if (s.cancelled) {
+    return `<div class="statusline"><span class="dot">🚫</span><b>Auftrag storniert</b></div>
+      <div class="steps">${cancelledStepsHtml()}</div>
+      <div class="err">Dieser Auftrag wurde storniert. Bei Fragen wende dich bitte an deinen Ansprechpartner${brand.supportEmail ? ` (${esc(brand.supportEmail)})` : ''}.</div>
+      ${addressHtml(s.deliveryAddress, { deviating: s.addressIsDeviating })}`;
+  }
   const icon = s.stage === 3 ? '📦' : s.stage === 2 ? '🚚' : '🛠️';
-
   const overdueHtml = s.overdue
     ? `<div class="err">Bitte kontaktiere uns, hier scheint etwas schiefgelaufen zu sein.${brand.supportEmail ? ` (${esc(brand.supportEmail)})` : ''}</div>`
     : '';
+  return `<div class="statusline"><span class="dot">${icon}</span><b>${esc(STAGES[s.stage] ?? s.stageLabel)}</b></div>
+    ${overdueHtml}
+    <div class="steps">${normalStepsHtml(s)}</div>
+    ${etaHtml(s)}
+    ${addressHtml(s.deliveryAddress, { deviating: s.addressIsDeviating })}
+    ${trackingHtml(s)}`;
+}
 
+// Einstieg aus dem Server. `result` ist eine Auftragsgruppe ({ parts: [...] }).
+// 1 Teilauftrag -> klassische Einzelansicht; mehrere -> Teilauftrags-Ansicht.
+export function renderResult(result) {
+  const parts = result.parts || [result];
+  return parts.length <= 1 ? renderSingle(result, parts[0]) : renderGroup(result, parts);
+}
+
+function renderSingle(result, s) {
   return layout(
     `Bestellung ${s.orderNumber}`,
     `
-    ${greetingHtml(s.recipientName)}
+    ${greetingHtml(result.recipientName)}
     <p class="sub">Bestellung ${esc(s.orderNumber)}</p>
-    <div class="statusline"><span class="dot">${icon}</span><b>${esc(STAGES[s.stage] ?? s.stageLabel)}</b></div>
-    ${overdueHtml}
-    <div class="steps">${stepsHtml}</div>
-    ${eta}
-    ${addressHtml(s.deliveryAddress)}
-    ${tracking}
+    ${partStatusBlock(s)}
+    <a class="back" href="/">← Andere Bestellung suchen</a>`,
+  );
+}
+
+// Alle Teilaufträge eines Ursprungsauftrags auf einer Seite. Jeder Teilauftrag
+// zeigt seine eigene Lieferadresse unter seiner Statushistorie (können je
+// Split abweichen).
+function renderGroup(result, parts) {
+  const delivered = parts.filter((p) => !p.cancelled && p.stage === 3).length;
+  const cancelled = parts.filter((p) => p.cancelled).length;
+  const summary = [
+    `${parts.length} Teilaufträge`,
+    delivered ? `${delivered} zugestellt` : null,
+    cancelled ? `${cancelled} storniert` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const partsHtml = parts
+    .map(
+      (p, i) => `
+    <div class="part">
+      <div class="part-head">
+        <span class="part-tag">${i + 1}/${parts.length}</span>
+        <b>${esc(p.orderNumber)}</b>
+      </div>
+      ${partStatusBlock(p)}
+    </div>`,
+    )
+    .join('');
+
+  return layout(
+    `Bestellung ${result.groupNumber}`,
+    `
+    ${greetingHtml(result.recipientName)}
+    <p class="sub">Bestellung ${esc(result.groupNumber)}</p>
+    <div class="ok">Dein Auftrag wurde in mehrere Teillieferungen aufgeteilt. Unten siehst du den Status und die Lieferadresse jedes Teilauftrags.</div>
+    <div class="group-summary">${esc(summary)}</div>
+    ${partsHtml}
     <a class="back" href="/">← Andere Bestellung suchen</a>`,
   );
 }
