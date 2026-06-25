@@ -15,6 +15,26 @@ function fmtDate(iso) {
   return d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
+// Fasst die Versanddienstleister der Sendungen zusammen, z. B. " · 1× DHL, 1× DPD".
+// Ein einzelner Dienstleister wird ohne Anzahl gezeigt (die steckt schon in "X Paket(e)").
+// Bei mehr als MAX_CARRIERS verschiedenen Dienstleistern wird mit "… u. a." gekürzt.
+const MAX_CARRIERS = 2;
+function carrierSummary(shipments) {
+  const counts = new Map();
+  for (const sh of shipments) {
+    if (!sh.carrier) continue;
+    counts.set(sh.carrier, (counts.get(sh.carrier) || 0) + 1);
+  }
+  const entries = [...counts.entries()];
+  if (entries.length === 0) return '';
+  const parts =
+    entries.length === 1
+      ? [esc(entries[0][0])]
+      : entries.slice(0, MAX_CARRIERS).map(([name, n]) => `${n}× ${esc(name)}`);
+  const more = entries.length > MAX_CARRIERS ? ' … u. a.' : '';
+  return ' · ' + parts.join(', ') + more;
+}
+
 const brand = config.brand;
 
 function layout(title, body) {
@@ -214,8 +234,8 @@ export function renderResult(s) {
     const bullet = reached ? '✓' : i === s.stage ? '●' : '';
     let sub = '';
     if (i === 2 && s.stage >= 2 && (s.packageCount || s.shipments.length)) {
-      const carrier = s.shipments[0]?.carrier;
-      sub = `<span>${s.packageCount || s.shipments.length} Paket(e)${carrier ? ' · ' + esc(carrier) : ''}</span>`;
+      const total = s.packageCount || s.shipments.length;
+      sub = `<span>${total} Paket(e)${carrierSummary(s.shipments)}</span>`;
     }
     return `<div class="step ${cls}">
       <div class="rail"><div class="bullet">${bullet}</div>${isLast ? '' : '<div class="line"></div>'}</div>
