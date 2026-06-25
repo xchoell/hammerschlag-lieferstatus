@@ -115,19 +115,22 @@ async function assembleGroup(candidate, zip) {
     parts.push(await buildPart({ order, zip }));
   }
 
-  // Gruppen-Überschrift: gemeinsame Referenz, sonst die Belegnummer-Basis
-  // (z. B. "200039" für die Teilaufträge 200039 + 200039-1).
+  // Gruppen-Überschrift: die Belegnummer-Basis (z. B. "2026-201505" für die
+  // Teilaufträge 2026-201505 + 2026-201505-1), sonst die Bestellnummer des Kunden.
   const groupNumber =
-    f.customerOrderNumber(orders[0]) ||
-    f.externalOrderNumber(orders[0]) ||
-    docBase(f.documentNumber(orders[0])) ||
-    null;
+    docBase(f.documentNumber(orders[0])) || f.customerOrderNumber(orders[0]) || null;
   return finalizeGroup(parts, groupNumber);
 }
 
-// Belegnummer-Basis: entfernt das Splitt-Suffix "-N" (200039-1 -> 200039).
+// Belegnummer-Basis: entfernt NUR ein angehängtes Split-Suffix "-N".
+// Belegnummern haben die Form "JAHR-LAUFNR" (z. B. 2026-201505); ein Split
+// hängt ein weiteres "-N" mit KLEINER Laufnummer an (2026-201505-1). Nur dieses
+// letzte Segment (max. 2 Stellen) entfernen - so bleibt die große LAUFNR der
+// Basis erhalten. Deckt auch das einfache Schema ohne Jahr ab (200039-1 -> 200039).
 function docBase(documentNumber) {
-  return String(documentNumber ?? '').replace(/-\d+$/, '');
+  const s = String(documentNumber ?? '');
+  const m = s.match(/^(.+)-\d{1,2}$/);
+  return m ? m[1] : s;
 }
 
 // Splits gehören immer demselben Kunden. Fehlt eine Kundennummer, wird nicht
@@ -180,12 +183,16 @@ async function resolveGroupOrders(candidate) {
     }
   }
 
-  // Strategie 2: gemeinsame Bestell-/Internetnummer (nur falls befüllt).
-  for (const field of ['customerOrderNumber', 'externalOrderNumber']) {
-    const value =
-      field === 'customerOrderNumber' ? f.customerOrderNumber(anchor) : f.externalOrderNumber(anchor);
-    if (!value) continue;
-    const siblings = await safe(() => listSalesOrders(field, value, { size: 50, number: 1 }), []);
+  // Strategie 2: gemeinsame Bestellnummer des Kunden (nur falls befüllt).
+  // ACHTUNG: NICHT über externalOrderNumber gruppieren - dieses Feld ist in der
+  // Praxis eine nicht-eindeutige Sammelreferenz (ein Wert hängt an vielen
+  // fremden Aufträgen) und führte zu massiver Falsch-Gruppierung.
+  const customerOrderNumber = f.customerOrderNumber(anchor);
+  if (customerOrderNumber) {
+    const siblings = await safe(
+      () => listSalesOrders('customerOrderNumber', customerOrderNumber, { size: 50, number: 1 }),
+      [],
+    );
     siblings.forEach(add);
   }
 
