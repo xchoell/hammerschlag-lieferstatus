@@ -9,7 +9,15 @@ import { config, assertConfig } from './config.js';
 import { lookupStatus } from './lookup.js';
 import { loadSettings, viewSettings, saveSettings } from './settings.js';
 import { loadLogo, currentLogo, saveLogo, removeLogo, MAX_BYTES } from './logo.js';
-import { renderForm, renderResult, renderNotFound, renderLogin, renderSettings } from './views.js';
+import {
+  renderForm,
+  renderResult,
+  renderNotFound,
+  renderLogin,
+  renderSettings,
+  renderRetoure,
+  renderRetoureDone,
+} from './views.js';
 
 loadSettings(); // persistierte Overrides aus data/settings.json anwenden
 loadLogo(); // ggf. hochgeladenes Logo reaktivieren (überschreibt brand.logoUrl)
@@ -165,6 +173,10 @@ app.post('/admin/logout', (req, res) => {
   res.setHeader('Set-Cookie', 'admin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
   res.redirect('/admin');
 });
+
+// Retoure anmelden (aktuell Dummy: zeigt Platzhalter-Formular + Bestätigung).
+app.get('/retoure', (req, res) => res.send(renderRetoure(req.query.order)));
+app.post('/retoure', (req, res) => res.send(renderRetoureDone(req.body?.order)));
 
 app.use((_req, res) => res.status(404).send(renderNotFound()));
 

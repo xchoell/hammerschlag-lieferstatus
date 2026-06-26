@@ -120,6 +120,11 @@ function layout(title, body) {
   .eta--deviating small { color: #92400e; font-weight: 600; }
   .track { display: block; text-align: center; text-decoration: none; background: var(--accent);
     color: #fff; padding: 13px; border-radius: 10px; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .btn-outline { display: block; text-align: center; text-decoration: none; background: #fff;
+    border: 1px solid var(--accent); color: var(--accent); padding: 12px; border-radius: 10px;
+    font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  select { width: 100%; height: 44px; padding: 0 12px; font-size: 16px; border: 1px solid #d1d5db;
+    border-radius: 10px; background: #fff; }
   .group-summary { font-size: 12px; color: #6b7280; margin: 0 0 16px; }
   .part { border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 14px 4px; margin-bottom: 14px; }
   .part-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
@@ -207,6 +212,11 @@ function addressHtml(a, { deviating = false } = {}) {
     .filter(Boolean)
     .map((line) => `<div style="font-size:14px;line-height:1.4;">${esc(line)}</div>`)
     .join('')}</div>`;
+}
+
+// Sekundär-Button "Retoure anmelden" (aktuell nur Dummy, führt auf /retoure).
+function retoureButtonHtml(orderNumber) {
+  return `<a class="btn-outline" href="/retoure?order=${encodeURIComponent(orderNumber || '')}">Retoure anmelden</a>`;
 }
 
 // Verlauf eines normalen Auftrags (4 Stufen).
@@ -306,6 +316,7 @@ function renderSingle(result, s) {
     ${greetingHtml(result.recipientName)}
     <p class="sub">Bestellung ${esc(s.orderNumber)}</p>
     ${partStatusBlock(s)}
+    ${s.cancelled ? '' : retoureButtonHtml(s.orderNumber)}
     <a class="back" href="/">← Andere Bestellung verfolgen</a>`,
   );
 }
@@ -345,7 +356,42 @@ function renderGroup(result, parts) {
     <div class="ok">Dein Auftrag wurde in mehrere Teillieferungen aufgeteilt. Unten siehst du den Status und die Lieferadresse jedes Teilauftrags.</div>
     <div class="group-summary">${esc(summary)}</div>
     ${partsHtml}
+    ${retoureButtonHtml(result.groupNumber)}
     <a class="back" href="/">← Andere Bestellung verfolgen</a>`,
+  );
+}
+
+// Dummy-Seite "Retoure anmelden" - noch ohne echte Funktion.
+export function renderRetoure(orderNumber) {
+  return layout(
+    'Retoure anmelden',
+    `
+    <h1>Retoure anmelden</h1>
+    ${orderNumber ? `<p class="sub">Bestellung ${esc(orderNumber)}</p>` : ''}
+    <div class="ok">Demo: Diese Retoure-Anmeldung ist ein Platzhalter und löst noch keinen echten Vorgang aus.</div>
+    <form method="post" action="/retoure">
+      <input type="hidden" name="order" value="${esc(orderNumber || '')}" />
+      <label for="reason">Grund der Retoure</label>
+      <select id="reason" name="reason">
+        <option>Falschlieferung</option>
+        <option>Artikel beschädigt</option>
+        <option>Zu viel bestellt</option>
+        <option>Sonstiges</option>
+      </select>
+      <button type="submit">Retoure absenden</button>
+    </form>
+    <a class="back" href="/">← Zurück zur Eingabe</a>`,
+  );
+}
+
+export function renderRetoureDone(orderNumber) {
+  return layout(
+    'Retoure angemeldet',
+    `
+    <h1>Retoure angemeldet ✓</h1>
+    ${orderNumber ? `<p class="sub">Bestellung ${esc(orderNumber)}</p>` : ''}
+    <div class="ok">Vielen Dank! Deine Retoure-Anmeldung ist eingegangen.<br><b>(Demo – es wird noch kein echter Vorgang erzeugt.)</b></div>
+    <a class="back" href="/">← Zurück zur Startseite</a>`,
   );
 }
 
