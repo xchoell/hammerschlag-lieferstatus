@@ -29,6 +29,52 @@ async function xentralRequest(path, params = {}) {
   return res.json();
 }
 
+// Schreibender Request (POST/PATCH) mit JSON-Body. Für Retoure-Anlage/Freigabe.
+// WICHTIG: braucht einen PAT MIT Schreib-Scopes (siehe .env.example).
+async function xentralWrite(method, path, body) {
+  const res = await fetch(new URL(config.xentral.baseUrl + path), {
+    method,
+    headers: {
+      Authorization: `Bearer ${config.xentral.token}`,
+      Accept: 'application/json',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    const err = new Error(`Xentral ${res.status} bei ${method} ${path}`);
+    err.status = res.status;
+    err.body = text.slice(0, 500);
+    throw err;
+  }
+  // 204/leerer Body tolerieren. Location-Header mitgeben: der V1-Create
+  // antwortet mit 201 OHNE Body — die neue ID steckt nur im Location-Header.
+  const text = await res.text();
+  return {
+    data: text ? JSON.parse(text) : {},
+    location: res.headers.get('location') || '',
+    status: res.status,
+  };
+}
+
+// Binär-Download (Retourenlabel/-beleg als PDF oder Bild).
+// Gibt { contentType, buffer } zurück.
+async function xentralFetchBinary(path, accept = 'application/pdf, image/*') {
+  const res = await fetch(new URL(config.xentral.baseUrl + path), {
+    headers: { Authorization: `Bearer ${config.xentral.token}`, Accept: accept },
+  });
+  if (!res.ok) {
+    const err = new Error(`Xentral ${res.status} bei ${path}`);
+    err.status = res.status;
+    throw err;
+  }
+  return {
+    contentType: res.headers.get('content-type') || 'application/octet-stream',
+    buffer: Buffer.from(await res.arrayBuffer()),
+  };
+}
+
 // v3-Filter: filter[i][key]=..&filter[i][op]=equals&filter[i][value]=..
 // SICHERHEIT: ausschließlich op=equals zulassen. contains/startsWith würde
 // Enumeration/Fishing über die öffentliche Seite ermöglichen.
@@ -73,6 +119,87 @@ export async function listDeliveryNotesForOrder(salesOrderId) {
 export async function getDeliveryNoteShipments(deliveryNoteId) {
   const json = await xentralRequest(`/api/v1/deliveryNotes/${deliveryNoteId}/shipments`);
   return json.data || json || [];
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Retouren (MVP0). Generations-Mix bewusst (siehe Recherche/RETOURE.md):
+//   • Lesen (Gründe, Versandarten) -> nur V1 vorhanden.
+//   • Anlegen + Label -> V1 (einziger Pfad mit shippingMethod + PDF-Download).
+//   • Positionen -> V1 salesOrders/{id}, damit die Position-IDs zum V1-Create passen.
+// ───────────────────────────────────────────────────────────────────────────
+
+// V1-Pagination: page[number] + page[size] sind Pflicht, size muss 10..50 sein
+// (per POC verifiziert: page=1 bzw. page[size]=100 -> HTTP 400). Lädt alle Seiten.
+async function paginateV1(path, extra = {}) {
+  const out = [];
+  for (let number = 1; number <= 50; number++) {
+    const json = await xentralRequest(path, { ...extra, 'page[number]': number, 'page[size]': 50 });
+    const data = json.data || [];
+    out.push(...data);
+    if (data.length < 50) break;
+  }
+  return out;
+}
+
+// Rücksendegründe. Scope: returnReason:read
+// Hinweis: die Filter `project`/`language` erwarten Array-Syntax (project[]=…);
+// MVP0 holt alle Gründe und filtert die Sprache client-seitig (s. returns.js).
+// TODO: projekt-genaues Scoping über project[] nachrüsten.
+export async function listReturnReasons() {
+  return paginateV1('/api/v1/returnReasons');
+}
+
+// Versandarten, gefiltert auf supportReturns=true (= in Xentral angelegte
+// Retouren-Versandarten). KEINE Zweitpflege im Portal nötig.
+export async function listReturnShippingMethods() {
+  const all = await paginateV1('/api/v1/shippingMethods');
+  return all.filter((m) => m.supportReturns === true || m.supportReturns === 1);
+}
+
+// Einzelner Auftrag inkl. Positionen (V1). Scope: salesOrder:read
+export async function getSalesOrderById(id) {
+  const json = await xentralRequest(`/api/v1/salesOrders/${id}`);
+  return json.data || json || null;
+}
+
+// Retoure anlegen. Scope: return:create (Schreibrecht!)
+// Antwort: 201 ohne Body -> ID aus dem Location-Header (/api/v1/returns/{id}).
+export async function createReturn(payload) {
+  const { data, location } = await xentralWrite('POST', '/api/v1/returns', payload);
+  const id = data?.data?.id ?? data?.id ?? (String(location).match(/(\d+)\/?$/) || [])[1] ?? null;
+  return { id };
+}
+
+// Retoure freigeben. Scope: return:update/return:send
+export async function releaseReturn(id) {
+  return xentralWrite('POST', `/api/v1/returns/${id}/actions/release`, undefined);
+}
+
+// Dokumente einer Retoure (Label, Retourenbeleg, ...).
+export async function listReturnDocuments(id) {
+  const json = await xentralRequest(`/api/v1/returns/${id}/documents`);
+  return json.data || [];
+}
+
+// Ein Dokument als Binärdatei (PDF/Bild) holen.
+export async function getReturnDocument(id, documentId) {
+  return xentralFetchBinary(`/api/v1/returns/${id}/documents/${documentId}`);
+}
+
+// Alle Retouren eines Auftrags (für die „bereits retourniert"-Prüfung).
+// Filter-Key ist `salesOrderId` (per POC verifiziert; NICHT `salesOrder.id`).
+export async function listReturnsForSalesOrder(salesOrderId) {
+  const json = await xentralRequest(
+    '/api/v1/returns',
+    equalsFilter([['salesOrderId', salesOrderId]], { size: 50, number: 1 }),
+  );
+  return json.data || [];
+}
+
+// Einzelne Retoure inkl. Positionen (quantity + salesOrderPosition + product).
+export async function getReturn(id) {
+  const json = await xentralRequest(`/api/v1/returns/${id}`);
+  return json.data || json || null;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
