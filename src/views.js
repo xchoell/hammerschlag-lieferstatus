@@ -46,7 +46,7 @@ function layout(title, body, opts = {}) {
 <meta name="robots" content="noindex, nofollow">
 <title>${esc(title)} · ${esc(brand.name)}</title>
 <style>
-  :root { --accent: ${esc(brand.color)}; }
+  :root { --accent: ${esc(brand.color)}; --secondary: ${esc(brand.secondaryColor || '#6b7280')}; }
   * { box-sizing: border-box; }
   body { margin: 0; background: #f4f4f5; color: #1a1a1a;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -121,7 +121,7 @@ function layout(title, body, opts = {}) {
   .track { display: block; text-align: center; text-decoration: none; background: var(--accent);
     color: #fff; padding: 13px; border-radius: 10px; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
   .btn-outline { display: block; text-align: center; text-decoration: none; background: #fff;
-    border: 1px solid var(--accent); color: var(--accent); padding: 12px; border-radius: 10px;
+    border: 1px solid var(--secondary); color: var(--secondary); padding: 12px; border-radius: 10px;
     font-size: 14px; font-weight: 600; margin-bottom: 8px; }
   select { width: 100%; height: 44px; padding: 0 12px; font-size: 16px; border: 1px solid #d1d5db;
     border-radius: 10px; background: #fff; }
@@ -135,7 +135,9 @@ function layout(title, body, opts = {}) {
   .part .statusline b { font-size: 16px; }
   .foot { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 16px; }
   .foot a { color: #6b7280; }
-  a.back { display: inline-block; margin-top: 14px; font-size: 13px; color: #6b7280; }
+  a.back { display: inline-block; margin-top: 14px; font-size: 13px; color: var(--secondary); }
+  .legal { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 8px; }
+  .legal a { color: var(--secondary); text-decoration: none; margin: 0 6px; }
   /* Admin: breitere Variante + linke Sektions-Navigation */
   .wrap--wide { max-width: 760px; }
   .admin { display: flex; gap: 20px; align-items: flex-start; }
@@ -163,9 +165,31 @@ function layout(title, body, opts = {}) {
       <div class="body">${body}</div>
     </div>
     ${brand.supportEmail ? `<p class="foot">Fragen zur Lieferung? <a href="mailto:${esc(brand.supportEmail)}">${esc(brand.supportEmail)}</a></p>` : ''}
+    ${legalLinksHtml()}
   </div>
 </body>
 </html>`;
+}
+
+// Footer-Zeile mit Rechts-/Shop-Links (nur gesetzte Links, sonst nichts).
+function legalLinksHtml() {
+  const links = [
+    ['Shop', brand.links?.shop],
+    ['Impressum', brand.links?.imprint],
+    ['AGB', brand.links?.terms],
+    ['Datenschutz', brand.links?.privacy],
+  ].filter(([, url]) => url);
+  if (links.length === 0) return '';
+  return `<p class="legal">${links
+    .map(([label, url]) => `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>`)
+    .join('·')}</p>`;
+}
+
+// Preis formatiert (de-DE) oder leer.
+function priceHtml(item, showPrices) {
+  if (!showPrices || !item.price) return '';
+  const formatted = new Intl.NumberFormat('de-DE', { style: 'currency', currency: item.price.currency }).format(item.price.amount);
+  return ` <span style="color:#6b7280;font-size:12px;">· ${esc(formatted)}</span>`;
 }
 
 export function renderForm({ error, query } = {}) {
@@ -385,7 +409,7 @@ export function renderRetoure(data, token) {
     .join('');
   const itemsHtml = data.items
     .map((it) => {
-      const head = `<div><b>${esc(it.name)}</b>${it.number ? ` <span style="color:#6b7280;font-size:12px;">· ${esc(it.number)}</span>` : ''}</div>`;
+      const head = `<div><b>${esc(it.name)}</b>${it.number ? ` <span style="color:#6b7280;font-size:12px;">· ${esc(it.number)}</span>` : ''}${priceHtml(it, data.showPrices)}</div>`;
       // Vollständig retourniert -> ausgegraut, keine Eingabefelder.
       if (it.remaining <= 0) {
         return `

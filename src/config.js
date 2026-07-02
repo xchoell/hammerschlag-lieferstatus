@@ -32,8 +32,17 @@ export const config = {
     name: process.env.BRAND_NAME || 'Sendungsverfolgung',
     supportEmail: process.env.BRAND_SUPPORT_EMAIL || '',
     color: process.env.BRAND_COLOR || '#1a1a1a',
+    // Sekundärfarbe für zweitrangige Elemente (Outline-Buttons, Zurück-Links).
+    secondaryColor: process.env.BRAND_COLOR_SECONDARY || '#6b7280',
     // Pfad/URL zum Logo. Leer lassen -> Fallback auf Buchstaben-Kachel.
     logoUrl: process.env.BRAND_LOGO_URL ?? '/logo.svg',
+    // Footer-Links (leer = ausgeblendet).
+    links: {
+      shop: process.env.BRAND_LINK_SHOP || '',
+      imprint: process.env.BRAND_LINK_IMPRINT || '',
+      terms: process.env.BRAND_LINK_TERMS || '',
+      privacy: process.env.BRAND_LINK_PRIVACY || '',
+    },
   },
   // Retoure-Flow. Stufe A: eine feste Retouren-Versandart (ID einer in Xentral
   // als Retoure markierten Versandart, supportReturns=true). Über /admin wählbar.
@@ -42,6 +51,8 @@ export const config = {
     // Retoure nur für zugestellte Sendungen zulassen (Parität zum alten
     // Portal: "Nur gelieferte Bestellungen"). Default an.
     onlyDelivered: bool(process.env.RETURNS_ONLY_DELIVERED, true),
+    // Artikelpreise (brutto) in der Retoure-Auswahl anzeigen. Default aus.
+    showPrices: bool(process.env.RETURNS_SHOW_PRICES, false),
   },
   // DHL Shipment Tracking - Unified API (developer.dhl.com).
   dhl: {

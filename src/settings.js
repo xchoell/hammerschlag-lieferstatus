@@ -25,6 +25,11 @@ export const EDITABLE = [
   { section: 'allgemein', key: 'brand.name', label: 'Firmenname', type: 'text' },
   { section: 'allgemein', key: 'brand.supportEmail', label: 'Support-E-Mail', type: 'text' },
   { section: 'allgemein', key: 'brand.color', label: 'Akzentfarbe (HEX)', type: 'text', hint: 'z. B. #1a1a1a' },
+  { section: 'allgemein', key: 'brand.secondaryColor', label: 'Sekundärfarbe (HEX)', type: 'text', hint: 'für zweitrangige Elemente, z. B. #6b7280' },
+  { section: 'allgemein', key: 'brand.links.shop', label: 'Shop-Link', type: 'text', hint: 'https://…' },
+  { section: 'allgemein', key: 'brand.links.imprint', label: 'Impressum-Link', type: 'text', hint: 'https://…' },
+  { section: 'allgemein', key: 'brand.links.terms', label: 'AGB-Link', type: 'text', hint: 'https://…' },
+  { section: 'allgemein', key: 'brand.links.privacy', label: 'Datenschutz-Link', type: 'text', hint: 'https://…' },
   { section: 'allgemein', key: 'useMock', label: 'Mock-Modus (Demo-Daten statt echter Instanz)', type: 'bool' },
   // ── Auftragsstatus ─────────────────────────────────────────────────────
   { section: 'auftragsstatus', key: 'dhl.apiKey', label: 'DHL API Key', type: 'secret' },
@@ -36,6 +41,7 @@ export const EDITABLE = [
   // ── Retouren ───────────────────────────────────────────────────────────
   { section: 'retouren', key: 'returns.shippingMethodId', label: 'Retouren-Versandart', type: 'select', hint: 'Mit dieser Versandart werden alle Retouren erstellt. Auswahl = in Xentral als Retoure markierte Versandarten (supportReturns).' },
   { section: 'retouren', key: 'returns.onlyDelivered', label: 'Retoure erst nach Zustellung erlauben', type: 'bool' },
+  { section: 'retouren', key: 'returns.showPrices', label: 'Artikelpreise in der Retoure-Auswahl anzeigen', type: 'bool' },
 ];
 
 // Formularfeld-Name <-> config-Pfad (Punkte sind in name-Attributen unschön).

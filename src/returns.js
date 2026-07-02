@@ -130,6 +130,12 @@ export async function loadReturnable(salesOrderId) {
       name: pick(p, ['product.name', 'name', 'product.number']) || 'Artikel',
       number: pick(p, ['product.number', 'articleNumber']) || '',
       quantity: Number(p.quantity) || 0,
+      // Brutto-Einzelpreis (Feldform live verifiziert: grossRevenueSingle.amount/currency).
+      price: (() => {
+        const amount = Number(pick(p, ['grossRevenueSingle.amount', 'price.amount']));
+        const currency = pick(p, ['grossRevenueSingle.currency', 'price.currency']) || 'EUR';
+        return Number.isFinite(amount) && amount > 0 ? { amount, currency } : null;
+      })(),
     }));
 
   const [reasonsRaw, shippingMethods, orderReturns] = await Promise.all([
@@ -165,6 +171,7 @@ export async function loadReturnable(salesOrderId) {
     reasons,
     shippingMethod: selected ? { id: String(selected.id), designation: selected.designation } : null,
     existingReturns: orderReturns.existing,
+    showPrices: !!config.returns?.showPrices,
   };
 }
 
