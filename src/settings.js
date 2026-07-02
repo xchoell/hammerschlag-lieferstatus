@@ -35,6 +35,7 @@ export const EDITABLE = [
   { section: 'auftragsstatus', key: 'deliveredFallbackOnOrderStatus', label: '„Zugestellt" notfalls aus ERP-Status ableiten (Demo, ohne DHL-Key)', type: 'bool' },
   // ── Retouren ───────────────────────────────────────────────────────────
   { section: 'retouren', key: 'returns.shippingMethodId', label: 'Retouren-Versandart', type: 'select', hint: 'Mit dieser Versandart werden alle Retouren erstellt. Auswahl = in Xentral als Retoure markierte Versandarten (supportReturns).' },
+  { section: 'retouren', key: 'returns.onlyDelivered', label: 'Retoure erst nach Zustellung erlauben', type: 'bool' },
 ];
 
 // Formularfeld-Name <-> config-Pfad (Punkte sind in name-Attributen unschön).

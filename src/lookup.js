@@ -331,6 +331,11 @@ function finalizeGroup(parts, groupNumber) {
     // Für die Retoure-Anmeldung: erster Teilauftrag mit echter salesOrderId.
     // MVP0 bietet Retoure auf diesen Auftrag an (Multi-Order -> TODO).
     primarySalesOrderId: parts.find((p) => p.salesOrderId)?.salesOrderId || null,
+    // Zustell-Status des Retoure-Auftrags (fürs Delivered-Gate).
+    primaryDelivered: (() => {
+      const p = parts.find((x) => x.salesOrderId);
+      return !!(p && !p.cancelled && p.stage === 3);
+    })(),
     parts,
   };
 }

@@ -39,6 +39,9 @@ export const config = {
   // als Retoure markierten Versandart, supportReturns=true). Über /admin wählbar.
   returns: {
     shippingMethodId: process.env.RETURN_SHIPPING_METHOD_ID || '',
+    // Retoure nur für zugestellte Sendungen zulassen (Parität zum alten
+    // Portal: "Nur gelieferte Bestellungen"). Default an.
+    onlyDelivered: bool(process.env.RETURNS_ONLY_DELIVERED, true),
   },
   // DHL Shipment Tracking - Unified API (developer.dhl.com).
   dhl: {

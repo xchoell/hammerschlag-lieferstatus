@@ -90,7 +90,15 @@ app.post('/status', lookupLimiter, async (req, res) => {
     if (!status) return res.status(404).send(renderNotFound());
     // Signiertes Retoure-Token: trägt den geprüften PLZ-Zweitfaktor in den
     // Retoure-Flow, ohne die PLZ erneut abzufragen. Nur für echte Aufträge.
-    if (status.primarySalesOrderId) status.retoureToken = orderToken(status.primarySalesOrderId);
+    // Delivered-Gate: ohne Zustellung (falls aktiv) gibt es keinen Token
+    // -> kein Button; der Zustell-Status wandert zusätzlich in den Token,
+    // damit /retoure das Gate unabhängig erneut prüfen kann.
+    if (
+      status.primarySalesOrderId &&
+      (!config.returns.onlyDelivered || status.primaryDelivered)
+    ) {
+      status.retoureToken = orderToken(status.primarySalesOrderId, !!status.primaryDelivered);
+    }
     return res.send(renderResult(status));
   } catch (err) {
     // Nie Interna nach außen geben.
@@ -228,10 +236,16 @@ const retoureLimiter = rateLimit({
     res.status(429).send(renderRetoureError('Zu viele Anfragen. Bitte warte einen Moment.')),
 });
 
+const NOT_DELIVERED =
+  'Eine Retoure ist erst möglich, sobald deine Sendung zugestellt wurde. Bitte versuche es nach der Zustellung erneut.';
+
 // Schritt 1: Artikelauswahl + Gründe + Retouren-Versandart anzeigen.
 app.get('/retoure', async (req, res) => {
-  const salesOrderId = verifyOrderToken(req.query.t);
-  if (!salesOrderId) return res.status(403).send(renderRetoureError(TOKEN_INVALID));
+  const verified = verifyOrderToken(req.query.t);
+  if (!verified) return res.status(403).send(renderRetoureError(TOKEN_INVALID));
+  if (config.returns.onlyDelivered && !verified.delivered)
+    return res.status(403).send(renderRetoureError(NOT_DELIVERED));
+  const salesOrderId = verified.salesOrderId;
   try {
     const data = await loadReturnable(salesOrderId);
     if (!data || data.items.length === 0)
@@ -248,8 +262,11 @@ app.get('/retoure', async (req, res) => {
 
 // Schritt 2: Retoure anlegen + freigeben, dann Label/Beleg verlinken.
 app.post('/retoure', retoureLimiter, async (req, res) => {
-  const salesOrderId = verifyOrderToken(req.body?.t);
-  if (!salesOrderId) return res.status(403).send(renderRetoureError(TOKEN_INVALID));
+  const verified = verifyOrderToken(req.body?.t);
+  if (!verified) return res.status(403).send(renderRetoureError(TOKEN_INVALID));
+  if (config.returns.onlyDelivered && !verified.delivered)
+    return res.status(403).send(renderRetoureError(NOT_DELIVERED));
+  const salesOrderId = verified.salesOrderId;
   try {
     const data = await loadReturnable(salesOrderId); // erneut laden -> Mengen serverseitig validieren
     // Auswahl = für die Position wurde ein Grund gewählt (kein JS nötig).

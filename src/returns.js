@@ -32,11 +32,13 @@ function sign(value) {
 }
 
 // Token über einem getaggten Payload ("order" | "label"), gegen Verwechslung.
-function makeToken(kind, id) {
-  const payload = `${kind}:${id}:${Date.now() + TOKEN_TTL_MS}`;
+// Payload = kind + Segmente + Ablaufzeit, HMAC-signiert.
+function makeToken(kind, segments) {
+  const payload = [kind, ...segments, Date.now() + TOKEN_TTL_MS].join(':');
   return `${b64url(payload)}.${sign(payload)}`;
 }
-function readToken(kind, token) {
+// Gibt die Segmente (ohne kind/exp) zurück oder null.
+function readToken(kind, token, segmentCount) {
   if (!token || typeof token !== 'string') return null;
   const [body, sig] = token.split('.');
   if (!body || !sig) return null;
@@ -44,15 +46,27 @@ function readToken(kind, token) {
   const expected = sign(payload);
   if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected)))
     return null;
-  const [k, id, exp] = payload.split(':');
+  const parts = payload.split(':');
+  if (parts.length !== segmentCount + 2) return null;
+  const k = parts[0];
+  const exp = parts[parts.length - 1];
   if (k !== kind || Number(exp) < Date.now()) return null;
-  return id;
+  return parts.slice(1, -1);
 }
 
-export const orderToken = (salesOrderId) => makeToken('order', salesOrderId);
-export const verifyOrderToken = (t) => readToken('order', t);
-export const labelToken = (returnId) => makeToken('label', returnId);
-export const verifyLabelToken = (t) => readToken('label', t);
+// Order-Token trägt den geprüften Zustell-Status mit (Delivered-Gate wird in
+// /retoure serverseitig erneut geprüft, nicht nur beim Rendern des Buttons).
+export const orderToken = (salesOrderId, delivered = false) =>
+  makeToken('order', [salesOrderId, delivered ? '1' : '0']);
+export function verifyOrderToken(t) {
+  const seg = readToken('order', t, 2);
+  return seg ? { salesOrderId: seg[0], delivered: seg[1] === '1' } : null;
+}
+export const labelToken = (returnId) => makeToken('label', [returnId]);
+export function verifyLabelToken(t) {
+  const seg = readToken('label', t, 1);
+  return seg ? seg[0] : null;
+}
 
 // ── tolerante Getter (V1-salesOrder-Shape) ─────────────────────────────────
 const dg = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
