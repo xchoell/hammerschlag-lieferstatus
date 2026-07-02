@@ -403,10 +403,18 @@ function renderGroup(result, parts) {
 
 // Schritt 1: Artikelauswahl. Ein Artikel gilt als ausgewählt, sobald ein Grund
 // gewählt ist - kein Client-JS nötig (CSP erlaubt keins).
-export function renderRetoure(data, token) {
-  const reasonOptions = data.reasons
-    .map((r) => `<option value="${esc(r.id)}">${esc(r.designation)}</option>`)
-    .join('');
+// prefill: rohe Formularwerte (qty_<id>/reason_<id>) für den "Ändern"-Rücksprung
+// aus der Bestätigungsseite; nur bekannte Gründe/plausible Mengen werden übernommen.
+export function renderRetoure(data, token, prefill = {}) {
+  const reasonOptionsFor = (itemId) => {
+    const selected = String(prefill[`reason_${itemId}`] ?? '');
+    return data.reasons
+      .map(
+        (r) =>
+          `<option value="${esc(r.id)}"${String(r.id) === selected ? ' selected' : ''}>${esc(r.designation)}</option>`,
+      )
+      .join('');
+  };
   const itemsHtml = data.items
     .map((it) => {
       const head = `<div><b>${esc(it.name)}</b>${it.number ? ` <span style="color:#6b7280;font-size:12px;">· ${esc(it.number)}</span>` : ''}${priceHtml(it, data.showPrices)}</div>`;
@@ -422,6 +430,8 @@ export function renderRetoure(data, token) {
         it.remaining < it.quantity
           ? `Bestellt: ${esc(it.quantity)} · bereits retourniert: ${esc(it.returned)} · noch retournierbar: <b>${esc(it.remaining)}</b>`
           : `Bestellt: ${esc(it.quantity)}`;
+      const preQty = Number(prefill[`qty_${it.id}`]);
+      const qtyValue = Number.isFinite(preQty) && preQty >= 1 && preQty <= it.remaining ? preQty : it.remaining;
       return `
     <div class="part" style="padding:12px 14px;">
       ${head}
@@ -429,13 +439,13 @@ export function renderRetoure(data, token) {
       <div style="display:flex;gap:10px;margin-top:10px;">
         <div style="flex:0 0 84px;">
           <label for="qty_${esc(it.id)}" style="margin:0 0 4px;">Menge</label>
-          <input id="qty_${esc(it.id)}" name="qty_${esc(it.id)}" type="number" min="1" max="${esc(it.remaining)}" value="${esc(it.remaining)}" />
+          <input id="qty_${esc(it.id)}" name="qty_${esc(it.id)}" type="number" min="1" max="${esc(it.remaining)}" value="${esc(qtyValue)}" />
         </div>
         <div style="flex:1;">
           <label for="reason_${esc(it.id)}" style="margin:0 0 4px;">Grund</label>
           <select id="reason_${esc(it.id)}" name="reason_${esc(it.id)}">
             <option value="">— nicht zurücksenden —</option>
-            ${reasonOptions}
+            ${reasonOptionsFor(it.id)}
           </select>
         </div>
       </div>
@@ -493,6 +503,45 @@ export function renderRetoure(data, token) {
     ${existingBlock}
     ${formOrNote}
     <a class="back" href="/">← Zurück</a>`,
+  );
+}
+
+// Zwischenschritt: Zusammenfassung vor der verbindlichen Anmeldung.
+// selections = validierte Auswahl [{posId, quantity, reasonId}]; die rohen
+// Formularwerte wandern als hidden fields mit (für Bestätigen UND "Ändern").
+export function renderRetoureConfirm(data, selections, token) {
+  const itemById = new Map(data.items.map((i) => [String(i.id), i]));
+  const reasonById = new Map(data.reasons.map((r) => [String(r.id), r.designation]));
+  const rows = selections
+    .map((s) => {
+      const it = itemById.get(String(s.posId));
+      return `<div class="part" style="padding:12px 14px;">
+        <b>${esc(s.quantity)}× ${esc(it?.name || 'Artikel')}</b>
+        <div style="color:#6b7280;font-size:13px;margin-top:2px;">Grund: ${esc(reasonById.get(String(s.reasonId)) || s.reasonId)}</div>
+      </div>`;
+    })
+    .join('');
+  const hidden = selections
+    .map(
+      (s) =>
+        `<input type="hidden" name="qty_${esc(s.posId)}" value="${esc(s.quantity)}" />
+         <input type="hidden" name="reason_${esc(s.posId)}" value="${esc(s.reasonId)}" />`,
+    )
+    .join('');
+  return layout(
+    'Retoure prüfen',
+    `
+    <h1>Retoure prüfen</h1>
+    <p class="sub">Bestellung ${esc(data.orderNumber)} · Bitte prüfe deine Auswahl.</p>
+    ${rows}
+    ${data.shippingMethod ? `<div class="eta"><small>Rücksendung mit</small><b>${esc(data.shippingMethod.designation)}</b></div>` : ''}
+    <form method="post" action="/retoure">
+      <input type="hidden" name="t" value="${esc(token)}" />
+      <input type="hidden" name="confirm" value="1" />
+      ${hidden}
+      <button type="submit">Retoure verbindlich anmelden</button>
+      <button type="submit" name="edit" value="1" class="ghost">← Auswahl ändern</button>
+    </form>`,
   );
 }
 

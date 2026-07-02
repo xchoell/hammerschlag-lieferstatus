@@ -27,6 +27,7 @@ import {
   renderLogin,
   renderSettings,
   renderRetoure,
+  renderRetoureConfirm,
   renderRetoureDone,
   renderRetoureError,
 } from './views.js';
@@ -282,6 +283,12 @@ app.post('/retoure', retoureLimiter, async (req, res) => {
       .filter((s) => s.reasonId && s.quantity > 0);
     if (!selections.some((s) => s.quantity > 0 && s.reasonId))
       return res.send(renderRetoureError('Bitte mindestens einen Artikel mit Menge und Grund auswählen.'));
+
+    // "Ändern" aus der Zusammenfassung: zurück zur Auswahl, Werte erhalten.
+    if (req.body.edit) return res.send(renderRetoure(data, req.body.t, req.body));
+
+    // Zwischenschritt: erst die Zusammenfassung zeigen, anlegen nur mit confirm=1.
+    if (req.body.confirm !== '1') return res.send(renderRetoureConfirm(data, selections, req.body.t));
 
     // Versandart kommt aus der Server-Config (Stufe A), NICHT aus dem Client.
     const { returnId } = await submitReturn({
