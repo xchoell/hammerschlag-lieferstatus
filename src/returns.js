@@ -116,7 +116,8 @@ async function loadReturnsForOrder(salesOrderId) {
 }
 
 // Retournierbare Positionen + Gründe + Retouren-Versandarten für einen Auftrag.
-export async function loadReturnable(salesOrderId) {
+// locale steuert die Sprache der Rücksendegründe (Fallback DE, dann alle).
+export async function loadReturnable(salesOrderId, locale = 'de') {
   const order = await getSalesOrderById(salesOrderId);
   if (!order) return null;
 
@@ -151,10 +152,15 @@ export async function loadReturnable(salesOrderId) {
     it.remaining = Math.max(0, it.quantity - it.returned);
   }
 
-  // Sprache client-seitig filtern (Server-Filter erwartet Array-Syntax). DE
-  // bevorzugt; fällt nichts an, alle Gründe zeigen (statt leerer Liste).
-  const de = reasonsRaw.filter((r) => String(r.language || '').toUpperCase() === 'DE');
-  const reasons = (de.length ? de : reasonsRaw).map((r) => ({ id: String(r.id), designation: r.designation }));
+  // Sprache client-seitig filtern (Server-Filter erwartet Array-Syntax).
+  // Kundensprache bevorzugt, dann DE, sonst alle (statt leerer Liste).
+  const wanted = String(locale).toUpperCase();
+  const inLocale = reasonsRaw.filter((r) => String(r.language || '').toUpperCase() === wanted);
+  const inDe = reasonsRaw.filter((r) => String(r.language || '').toUpperCase() === 'DE');
+  const reasons = (inLocale.length ? inLocale : inDe.length ? inDe : reasonsRaw).map((r) => ({
+    id: String(r.id),
+    designation: r.designation,
+  }));
 
   // Stufe A: feste Retouren-Versandart aus der Konfiguration (/admin) — der
   // Endkunde wählt nicht mehr. selected=null, wenn (noch) keine konfiguriert ist

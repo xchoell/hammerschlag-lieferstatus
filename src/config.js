@@ -23,6 +23,8 @@ export const config = {
   // Zugriff (z. B. Docker) HOST=0.0.0.0 setzen.
   host: process.env.HOST || '127.0.0.1',
   useMock: bool(process.env.USE_MOCK, false),
+  // Standardsprache der Kundenseiten (de|en); pro Besucher via ?lang= umschaltbar.
+  defaultLocale: (process.env.DEFAULT_LOCALE || 'de').toLowerCase(),
   trustProxy: bool(process.env.TRUST_PROXY, false),
   rateLimit: {
     windowMs: int(process.env.RATE_LIMIT_WINDOW_MS, 60_000),

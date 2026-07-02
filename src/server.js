@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import { config, assertConfig } from './config.js';
+import { localeMiddleware, currentLocale, t } from './i18n.js';
 import { lookupStatus } from './lookup.js';
 import { loadSettings, viewSettings, saveSettings, SECTIONS, DEFAULT_SECTION } from './settings.js';
 import { loadLogo, currentLogo, saveLogo, removeLogo, MAX_BYTES } from './logo.js';
@@ -64,6 +65,8 @@ app.use(
 // 32kb: das Retoure-Formular kann mehrere Positionen (Menge + Grund je Artikel)
 // posten. Weiterhin klein genug als Missbrauchsschutz; Writes sind rate-limited.
 app.use(express.urlencoded({ extended: false, limit: '32kb' }));
+// Kundensprache pro Request (?lang= > Cookie > Accept-Language > Default).
+app.use(localeMiddleware);
 
 // Rate-Limit nur auf den Lookup (Schutz gegen Enumeration der Nummern).
 const lookupLimiter = rateLimit({
@@ -73,7 +76,7 @@ const lookupLimiter = rateLimit({
   legacyHeaders: false,
   handler: (_req, res) =>
     res.status(429).send(
-      renderForm({ error: 'Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.' }),
+      renderForm({ error: t('form.rateLimited') }),
     ),
 });
 
@@ -84,7 +87,7 @@ app.get('/', (_req, res) => res.send(renderForm()));
 app.post('/status', lookupLimiter, async (req, res) => {
   const { query, zip } = req.body || {};
   if (!query || !zip) {
-    return res.status(400).send(renderForm({ error: 'Bitte Nummer und PLZ eingeben.', query }));
+    return res.status(400).send(renderForm({ error: t('form.missingInput'), query }));
   }
   try {
     const status = await lookupStatus(query, zip);
@@ -106,7 +109,7 @@ app.post('/status', lookupLimiter, async (req, res) => {
     console.error('[status] unerwarteter Fehler:', err);
     return res
       .status(500)
-      .send(renderForm({ error: 'Es ist ein Fehler aufgetreten. Bitte versuche es später erneut.', query }));
+      .send(renderForm({ error: t('form.error'), query }));
   }
 });
 
@@ -227,49 +230,48 @@ app.post('/admin/logout', (req, res) => {
 // ── Retoure-Anmeldung (MVP0) ────────────────────────────────────────────────
 // Schutz: alle Retoure-Routen erfordern ein gültiges, signiertes Token aus dem
 // /status-Lookup (trägt den geprüften PLZ-Zweitfaktor). Writes rate-limited.
-const TOKEN_INVALID = 'Dieser Retoure-Link ist ungültig oder abgelaufen. Bitte rufe den Lieferstatus erneut auf.';
+
 const retoureLimiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
   max: config.rateLimit.max,
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req, res) =>
-    res.status(429).send(renderRetoureError('Zu viele Anfragen. Bitte warte einen Moment.')),
+    res.status(429).send(renderRetoureError(t('err.rateLimited'))),
 });
 
-const NOT_DELIVERED =
-  'Eine Retoure ist erst möglich, sobald deine Sendung zugestellt wurde. Bitte versuche es nach der Zustellung erneut.';
+
 
 // Schritt 1: Artikelauswahl + Gründe + Retouren-Versandart anzeigen.
 app.get('/retoure', async (req, res) => {
   const verified = verifyOrderToken(req.query.t);
-  if (!verified) return res.status(403).send(renderRetoureError(TOKEN_INVALID));
+  if (!verified) return res.status(403).send(renderRetoureError(t('err.tokenInvalid')));
   if (config.returns.onlyDelivered && !verified.delivered)
-    return res.status(403).send(renderRetoureError(NOT_DELIVERED));
+    return res.status(403).send(renderRetoureError(t('err.notDelivered')));
   const salesOrderId = verified.salesOrderId;
   try {
-    const data = await loadReturnable(salesOrderId);
+    const data = await loadReturnable(salesOrderId, currentLocale());
     if (!data || data.items.length === 0)
-      return res.send(renderRetoureError('Für diese Bestellung sind keine retournierbaren Artikel hinterlegt.'));
+      return res.send(renderRetoureError(t('err.noItems')));
     // Alle weiteren Fälle (alles bereits retourniert / keine Versandart /
     // bestehende Retouren mit Label) rendert renderRetoure selbst inkl. der
     // Label-Downloads bereits angemeldeter Retouren.
     return res.send(renderRetoure(data, req.query.t));
   } catch (err) {
     console.error('[retoure] laden fehlgeschlagen:', err);
-    return res.status(500).send(renderRetoureError('Die Artikel konnten nicht geladen werden. Bitte versuche es später erneut.'));
+    return res.status(500).send(renderRetoureError(t('err.loadFailed')));
   }
 });
 
 // Schritt 2: Retoure anlegen + freigeben, dann Label/Beleg verlinken.
 app.post('/retoure', retoureLimiter, async (req, res) => {
   const verified = verifyOrderToken(req.body?.t);
-  if (!verified) return res.status(403).send(renderRetoureError(TOKEN_INVALID));
+  if (!verified) return res.status(403).send(renderRetoureError(t('err.tokenInvalid')));
   if (config.returns.onlyDelivered && !verified.delivered)
-    return res.status(403).send(renderRetoureError(NOT_DELIVERED));
+    return res.status(403).send(renderRetoureError(t('err.notDelivered')));
   const salesOrderId = verified.salesOrderId;
   try {
-    const data = await loadReturnable(salesOrderId); // erneut laden -> Mengen serverseitig validieren
+    const data = await loadReturnable(salesOrderId, currentLocale()); // erneut laden -> Mengen serverseitig validieren
     // Auswahl = für die Position wurde ein Grund gewählt (kein JS nötig).
     // Menge gegen die bestellte/gelieferte Menge clampen (keine Over-Returns).
     const selections = (data?.items || [])
@@ -282,7 +284,7 @@ app.post('/retoure', retoureLimiter, async (req, res) => {
       }))
       .filter((s) => s.reasonId && s.quantity > 0);
     if (!selections.some((s) => s.quantity > 0 && s.reasonId))
-      return res.send(renderRetoureError('Bitte mindestens einen Artikel mit Menge und Grund auswählen.'));
+      return res.send(renderRetoureError(t('err.selectOne')));
 
     // "Ändern" aus der Zusammenfassung: zurück zur Auswahl, Werte erhalten.
     if (req.body.edit) return res.send(renderRetoure(data, req.body.t, req.body));
@@ -302,7 +304,7 @@ app.post('/retoure', retoureLimiter, async (req, res) => {
     );
   } catch (err) {
     console.error('[retoure] anlegen fehlgeschlagen:', err);
-    return res.status(500).send(renderRetoureError('Die Retoure konnte nicht angelegt werden. Bitte versuche es später erneut.'));
+    return res.status(500).send(renderRetoureError(t('err.createFailed')));
   }
 });
 

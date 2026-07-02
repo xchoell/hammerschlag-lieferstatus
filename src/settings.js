@@ -30,6 +30,7 @@ export const EDITABLE = [
   { section: 'allgemein', key: 'brand.links.imprint', label: 'Impressum-Link', type: 'text', hint: 'https://…' },
   { section: 'allgemein', key: 'brand.links.terms', label: 'AGB-Link', type: 'text', hint: 'https://…' },
   { section: 'allgemein', key: 'brand.links.privacy', label: 'Datenschutz-Link', type: 'text', hint: 'https://…' },
+  { section: 'allgemein', key: 'defaultLocale', label: 'Standardsprache Kundenseiten (de/en)', type: 'text', hint: 'de oder en; Besucher können per ?lang= umschalten' },
   { section: 'allgemein', key: 'useMock', label: 'Mock-Modus (Demo-Daten statt echter Instanz)', type: 'bool' },
   // ── Auftragsstatus ─────────────────────────────────────────────────────
   { section: 'auftragsstatus', key: 'dhl.apiKey', label: 'DHL API Key', type: 'secret' },

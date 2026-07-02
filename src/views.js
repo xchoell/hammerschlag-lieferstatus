@@ -1,4 +1,5 @@
 import { config } from './config.js';
+import { t, currentLocale } from './i18n.js';
 import { STAGES, CANCELLED_STAGES } from './lookup.js';
 import { logoStatus } from './logo.js';
 
@@ -12,7 +13,7 @@ function fmtDate(iso) {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return esc(iso);
-  return d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+  return d.toLocaleDateString(currentLocale() === 'en' ? 'en-GB' : 'de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
 // Fasst die Versanddienstleister der Sendungen zusammen, z. B. " · 1× DHL, 1× DPD".
@@ -39,7 +40,7 @@ const brand = config.brand;
 
 function layout(title, body, opts = {}) {
   return `<!doctype html>
-<html lang="de">
+<html lang="${esc(currentLocale())}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -164,7 +165,7 @@ function layout(title, body, opts = {}) {
       </div>
       <div class="body">${body}</div>
     </div>
-    ${brand.supportEmail ? `<p class="foot">Fragen zur Lieferung? <a href="mailto:${esc(brand.supportEmail)}">${esc(brand.supportEmail)}</a></p>` : ''}
+    ${brand.supportEmail ? `<p class="foot">${esc(t('footer.question'))} <a href="mailto:${esc(brand.supportEmail)}">${esc(brand.supportEmail)}</a></p>` : ''}
     ${legalLinksHtml()}
   </div>
 </body>
@@ -174,10 +175,10 @@ function layout(title, body, opts = {}) {
 // Footer-Zeile mit Rechts-/Shop-Links (nur gesetzte Links, sonst nichts).
 function legalLinksHtml() {
   const links = [
-    ['Shop', brand.links?.shop],
-    ['Impressum', brand.links?.imprint],
-    ['AGB', brand.links?.terms],
-    ['Datenschutz', brand.links?.privacy],
+    [t('legal.shop'), brand.links?.shop],
+    [t('legal.imprint'), brand.links?.imprint],
+    [t('legal.terms'), brand.links?.terms],
+    [t('legal.privacy'), brand.links?.privacy],
   ].filter(([, url]) => url);
   if (links.length === 0) return '';
   return `<p class="legal">${links
@@ -194,53 +195,53 @@ function priceHtml(item, showPrices) {
 
 export function renderForm({ error, query } = {}) {
   return layout(
-    'Lieferstatus',
+    t('title.status'),
     `
-    <h1>Auftragsstatus und Retourenportal</h1>
+    <h1>${esc(t('form.heading'))}</h1>
     ${error ? `<div class="err">${esc(error)}</div>` : ''}
     <form method="post" action="/status" autocomplete="off">
       <div class="label-row">
-        <label for="query">Nummer</label>
+        <label for="query">${esc(t('form.number'))}</label>
         <span class="info" tabindex="0" role="button" aria-label="Welche Nummern sind erlaubt?">
           <span class="info-ic" aria-hidden="true">i</span>
-          <span class="info-pop" role="tooltip">Gib eine der folgenden Nummern ein, um den Auftragsstatus einzusehen:
+          <span class="info-pop" role="tooltip">${esc(t('form.numberInfoIntro'))}
             <ul>
-              <li>Auftragsnummer</li>
-              <li>Bestellnummer</li>
-              <li>Internet-/Shop-Bestellnummer</li>
-              <li>Lieferscheinnummer</li>
+              <li>${esc(t('form.numberKinds.order'))}</li>
+              <li>${esc(t('form.numberKinds.customer'))}</li>
+              <li>${esc(t('form.numberKinds.web'))}</li>
+              <li>${esc(t('form.numberKinds.deliveryNote'))}</li>
             </ul>
           </span>
         </span>
       </div>
-      <input id="query" name="query" inputmode="text" required value="${esc(query || '')}" placeholder="z. B. AU-20294" />
-      <label for="zip">Liefer-PLZ</label>
-      <input id="zip" name="zip" inputmode="numeric" required placeholder="z. B. 80331" />
-      <button type="submit">Status anzeigen</button>
-    </form>`,
+      <input id="query" name="query" inputmode="text" required value="${esc(query || '')}" placeholder="${esc(t('form.numberPlaceholder'))}" />
+      <label for="zip">${esc(t('form.zip'))}</label>
+      <input id="zip" name="zip" inputmode="numeric" required placeholder="${esc(t('form.zipPlaceholder'))}" />
+      <button type="submit">${esc(t('form.submit'))}</button>
+    </form>
+    <p class="legal"><a href="?lang=de">DE</a>·<a href="?lang=en">EN</a></p>`,
   );
 }
 
 export function renderNotFound() {
   return layout(
-    'Nicht gefunden',
+    t('title.notFound'),
     `
-    <h1>Wir konnten nichts finden</h1>
-    <p class="sub">Bitte prüfe Nummer und PLZ und versuche es erneut. Achte auf Tippfehler
-      und nutze die Liefer-PLZ (nicht die Rechnungsadresse).</p>
-    <a class="back" href="/">← Zurück zur Eingabe</a>`,
+    <h1>${esc(t('notFound.heading'))}</h1>
+    <p class="sub">${esc(t('notFound.text'))}</p>
+    <a class="back" href="/">${esc(t('notFound.back'))}</a>`,
   );
 }
 
 function greetingHtml(name) {
   return name
-    ? `<p style="font-size:16px;font-weight:500;margin:0 0 10px;">Hallo ${esc(name)}</p>`
+    ? `<p style="font-size:16px;font-weight:500;margin:0 0 10px;">${esc(t('status.hello', { name }))}</p>`
     : '';
 }
 
 function addressHtml(a, { deviating = false } = {}) {
   if (!a) return '';
-  const label = deviating ? 'Abweichende Lieferadresse' : 'Lieferadresse';
+  const label = deviating ? t('status.addressDeviating') : t('status.address');
   return `<div class="eta${deviating ? ' eta--deviating' : ''}"><small>${esc(label)}</small>${[
     a.name,
     a.contactPerson && a.contactPerson !== a.name ? a.contactPerson : null,
@@ -256,7 +257,7 @@ function addressHtml(a, { deviating = false } = {}) {
 // serverseitig geprüftem PLZ-Zweitfaktor). Ohne Token kein Button.
 function retoureButtonHtml(token) {
   if (!token) return '';
-  return `<a class="btn-outline" href="/retoure?t=${encodeURIComponent(token)}">Retoure anmelden</a>`;
+  return `<a class="btn-outline" href="/retoure?t=${encodeURIComponent(token)}">${esc(t('status.retoureButton'))}</a>`;
 }
 
 // Verlauf eines normalen Auftrags (4 Stufen).
@@ -270,11 +271,11 @@ function normalStepsHtml(s) {
     let sub = '';
     if (i === 2 && s.stage >= 2 && (s.packageCount || s.shipments.length)) {
       const total = s.packageCount || s.shipments.length;
-      sub = `<span>${total} Paket(e)${carrierSummary(s.shipments)}</span>`;
+      sub = `<span>${esc(t('status.packages', { n: total }))}${carrierSummary(s.shipments)}</span>`;
     }
     return `<div class="step ${cls}">
       <div class="rail"><div class="bullet">${bullet}</div>${isLast ? '' : '<div class="line"></div>'}</div>
-      <div class="txt"><b>${esc(name)}</b>${sub}</div>
+      <div class="txt"><b>${esc(t('stages.' + i))}</b>${sub}</div>
     </div>`;
   }).join('');
 }
@@ -287,23 +288,23 @@ function cancelledStepsHtml() {
     const bullet = i === 0 ? '✓' : '✕';
     return `<div class="step ${cls}">
       <div class="rail"><div class="bullet">${bullet}</div>${isLast ? '' : '<div class="line"></div>'}</div>
-      <div class="txt"><b>${esc(name)}</b></div>
+      <div class="txt"><b>${esc(i === 0 ? t('stages.0') : t('stages.cancelled'))}</b></div>
     </div>`;
   }).join('');
 }
 
 function etaHtml(s) {
   const etaLabels = {
-    wish: 'Wunschliefertermin',
-    carrier: 'Voraussichtlicher Liefertag',
-    estimated: 'Voraussichtlicher Liefertag (geschätzt)',
+    wish: t('status.wishDate'),
+    carrier: t('status.carrierDate'),
+    estimated: t('status.estimatedDate'),
   };
   if (s.deliveryDate && s.deliveryDateKind === 'delivered') {
     // Zugestellt: nur das echte Carrier-Zustelldatum zeigen.
-    return `<div class="eta"><small>Zugestellt am</small><b>${fmtDate(s.deliveryDate)}</b></div>`;
+    return `<div class="eta"><small>${esc(t('status.deliveredAt'))}</small><b>${fmtDate(s.deliveryDate)}</b></div>`;
   }
   if (s.deliveryDate && s.stage < 3) {
-    const label = etaLabels[s.deliveryDateKind] || 'Voraussichtlicher Liefertag';
+    const label = etaLabels[s.deliveryDateKind] || t('status.carrierDate');
     return `<div class="eta"><small>${esc(label)}</small><b>${fmtDate(s.deliveryDate)}</b></div>`;
   }
   return '';
@@ -313,9 +314,9 @@ function trackingHtml(s) {
   return s.shipments
     .filter((sh) => sh.trackingLink || sh.trackingNumber)
     .map((sh, i) => {
-      const label = s.shipments.length > 1 ? `Paket ${i + 1} verfolgen` : 'Sendung live verfolgen';
+      const label = s.shipments.length > 1 ? t('status.trackN', { n: i + 1 }) : t('status.trackOne');
       if (sh.trackingLink) return `<a class="track" href="${esc(sh.trackingLink)}" target="_blank" rel="noopener">${esc(label)} ↗</a>`;
-      return `<div class="eta"><small>Sendungsnummer ${esc(sh.carrier || '')}</small><b>${esc(sh.trackingNumber)}</b></div>`;
+      return `<div class="eta"><small>${esc(t('status.trackingNumber', { carrier: sh.carrier || '' }))}</small><b>${esc(sh.trackingNumber)}</b></div>`;
     })
     .join('');
 }
@@ -325,16 +326,16 @@ function trackingHtml(s) {
 // Wird sowohl für den Einzelauftrag als auch je Teilauftrag der Gruppe genutzt.
 function partStatusBlock(s) {
   if (s.cancelled) {
-    return `<div class="statusline"><span class="dot">🚫</span><b>Auftrag storniert</b></div>
+    return `<div class="statusline"><span class="dot">🚫</span><b>${esc(t('stages.cancelled'))}</b></div>
       <div class="steps">${cancelledStepsHtml()}</div>
-      <div class="err">Dieser Auftrag wurde storniert. Bei Fragen wende dich bitte an deinen Ansprechpartner${brand.supportEmail ? ` (${esc(brand.supportEmail)})` : ''}.</div>
+      <div class="err">${esc(t('status.cancelledInfo', { contact: brand.supportEmail ? ` (${brand.supportEmail})` : '' }))}</div>
       ${addressHtml(s.deliveryAddress, { deviating: s.addressIsDeviating })}`;
   }
   const icon = s.stage === 3 ? '📦' : s.stage === 2 ? '🚚' : '🛠️';
   const overdueHtml = s.overdue
-    ? `<div class="err">Bitte kontaktiere uns, hier scheint etwas schiefgelaufen zu sein.${brand.supportEmail ? ` (${esc(brand.supportEmail)})` : ''}</div>`
+    ? `<div class="err">${esc(t('status.overdue', { contact: brand.supportEmail ? ` (${brand.supportEmail})` : '' }))}</div>`
     : '';
-  return `<div class="statusline"><span class="dot">${icon}</span><b>${esc(STAGES[s.stage] ?? s.stageLabel)}</b></div>
+  return `<div class="statusline"><span class="dot">${icon}</span><b>${esc(t('stages.' + s.stage))}</b></div>
     ${overdueHtml}
     <div class="steps">${normalStepsHtml(s)}</div>
     ${etaHtml(s)}
@@ -351,13 +352,13 @@ export function renderResult(result) {
 
 function renderSingle(result, s) {
   return layout(
-    `Bestellung ${s.orderNumber}`,
+    t('title.order', { n: s.orderNumber }),
     `
     ${greetingHtml(result.recipientName)}
-    <p class="sub">Bestellung ${esc(s.orderNumber)}</p>
+    <p class="sub">${esc(t('status.order', { n: s.orderNumber }))}</p>
     ${partStatusBlock(s)}
     ${s.cancelled ? '' : retoureButtonHtml(result.retoureToken)}
-    <a class="back" href="/">← Andere Bestellung verfolgen</a>`,
+    <a class="back" href="/">${esc(t('status.otherOrder'))}</a>`,
   );
 }
 
@@ -368,9 +369,9 @@ function renderGroup(result, parts) {
   const delivered = parts.filter((p) => !p.cancelled && p.stage === 3).length;
   const cancelled = parts.filter((p) => p.cancelled).length;
   const summary = [
-    `${parts.length} Teilaufträge`,
-    delivered ? `${delivered} zugestellt` : null,
-    cancelled ? `${cancelled} storniert` : null,
+    t('status.splitParts', { n: parts.length }),
+    delivered ? t('status.splitDelivered', { n: delivered }) : null,
+    cancelled ? t('status.splitCancelled', { n: cancelled }) : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -389,15 +390,15 @@ function renderGroup(result, parts) {
     .join('');
 
   return layout(
-    `Bestellung ${result.groupNumber}`,
+    t('title.order', { n: result.groupNumber }),
     `
     ${greetingHtml(result.recipientName)}
-    <p class="sub">Bestellung ${esc(result.groupNumber)}</p>
-    <div class="ok">Dein Auftrag wurde in mehrere Teillieferungen aufgeteilt. Unten siehst du den Status und die Lieferadresse jedes Teilauftrags.</div>
+    <p class="sub">${esc(t('status.order', { n: result.groupNumber }))}</p>
+    <div class="ok">${esc(t('status.splitInfo'))}</div>
     <div class="group-summary">${esc(summary)}</div>
     ${partsHtml}
     ${retoureButtonHtml(result.retoureToken)}
-    <a class="back" href="/">← Andere Bestellung verfolgen</a>`,
+    <a class="back" href="/">${esc(t('status.otherOrder'))}</a>`,
   );
 }
 
@@ -423,13 +424,13 @@ export function renderRetoure(data, token, prefill = {}) {
         return `
     <div class="part" style="padding:12px 14px;opacity:.5;">
       ${head}
-      <div style="color:#6b7280;font-size:12px;margin-top:4px;">Bereits vollständig retourniert (${esc(it.returned)} von ${esc(it.quantity)})</div>
+      <div style="color:#6b7280;font-size:12px;margin-top:4px;">${esc(t('retoure.fullyReturned', { r: it.returned, n: it.quantity }))}</div>
     </div>`;
       }
       const info =
         it.remaining < it.quantity
-          ? `Bestellt: ${esc(it.quantity)} · bereits retourniert: ${esc(it.returned)} · noch retournierbar: <b>${esc(it.remaining)}</b>`
-          : `Bestellt: ${esc(it.quantity)}`;
+          ? `${esc(t('retoure.orderedDetail', { n: it.quantity, r: it.returned }))} <b>${esc(it.remaining)}</b>`
+          : esc(t('retoure.ordered', { n: it.quantity }));
       const preQty = Number(prefill[`qty_${it.id}`]);
       const qtyValue = Number.isFinite(preQty) && preQty >= 1 && preQty <= it.remaining ? preQty : it.remaining;
       return `
@@ -438,13 +439,13 @@ export function renderRetoure(data, token, prefill = {}) {
       <div style="color:#6b7280;font-size:12px;margin-top:2px;">${info}</div>
       <div style="display:flex;gap:10px;margin-top:10px;">
         <div style="flex:0 0 84px;">
-          <label for="qty_${esc(it.id)}" style="margin:0 0 4px;">Menge</label>
+          <label for="qty_${esc(it.id)}" style="margin:0 0 4px;">${esc(t('retoure.qty'))}</label>
           <input id="qty_${esc(it.id)}" name="qty_${esc(it.id)}" type="number" min="1" max="${esc(it.remaining)}" value="${esc(qtyValue)}" />
         </div>
         <div style="flex:1;">
-          <label for="reason_${esc(it.id)}" style="margin:0 0 4px;">Grund</label>
+          <label for="reason_${esc(it.id)}" style="margin:0 0 4px;">${esc(t('retoure.reason'))}</label>
           <select id="reason_${esc(it.id)}" name="reason_${esc(it.id)}">
-            <option value="">— nicht zurücksenden —</option>
+            <option value="">${esc(t('retoure.noReturn'))}</option>
             ${reasonOptionsFor(it.id)}
           </select>
         </div>
@@ -454,13 +455,13 @@ export function renderRetoure(data, token, prefill = {}) {
     .join('');
   // Stufe A: Versandart ist fix konfiguriert -> nur Anzeige, keine Kundenauswahl.
   const shippingInfo = data.shippingMethod
-    ? `<div class="eta"><small>Rücksendung mit</small><b>${esc(data.shippingMethod.designation)}</b></div>`
+    ? `<div class="eta"><small>${esc(t('retoure.shipWith'))}</small><b>${esc(data.shippingMethod.designation)}</b></div>`
     : '';
 
   // Bereits angemeldete Retouren: Label/Beleg direkt zum Download anbieten.
   const existing = data.existingReturns || [];
   const existingBlock = existing.length
-    ? `<div class="ok">Du hast für diese Bestellung bereits ${existing.length === 1 ? 'eine Retoure' : esc(existing.length) + ' Retouren'} angemeldet. Hier kannst du dein Versandlabel erneut herunterladen.</div>
+    ? `<div class="ok">${esc(existing.length === 1 ? t('retoure.existing.one') : t('retoure.existing.many', { n: existing.length }))}</div>
     ${existing
       .map((er) => {
         const links = (er.documents || []).length
@@ -470,9 +471,9 @@ export function renderRetoure(data, token, prefill = {}) {
                   `<a class="track" href="/retoure/label?t=${encodeURIComponent(er.labelToken)}&doc=${encodeURIComponent(d.id)}" target="_blank" rel="noopener">${esc(docLabel(d))} ↗</a>`,
               )
               .join('')
-          : `<div class="eta"><small>Versandlabel</small>Wird noch erstellt – du erhältst es per E-Mail, sobald es bereitsteht.</div>`;
+          : `<div class="eta"><small>${esc(t('retoure.labelPendingShort'))}</small>${esc(t('retoure.labelPending'))}</div>`;
         return `<div class="part" style="padding:12px 14px;">
-          <div><b>Retoure ${esc(er.documentNumber || er.returnId)}</b></div>
+          <div><b>${esc(t('retoure.existing.title', { n: er.documentNumber || er.returnId }))}</b></div>
           ${links}
         </div>`;
       })
@@ -482,27 +483,25 @@ export function renderRetoure(data, token, prefill = {}) {
   // Formular nur, wenn noch etwas retournierbar ist UND eine Versandart konfiguriert ist.
   const hasReturnable = data.items.some((i) => i.remaining > 0);
   const canReturn = hasReturnable && !!data.shippingMethod;
-  const note = !hasReturnable
-    ? '<p class="sub">Für diese Bestellung sind alle Artikel bereits zur Retoure angemeldet.</p>'
-    : '<p class="sub">Eine neue Retoure ist derzeit nicht möglich. Bitte kontaktiere den Kundenservice.</p>';
+  const note = `<p class="sub">${esc(!hasReturnable ? t('retoure.allReturned') : t('retoure.notPossible'))}</p>`;
   const formOrNote = canReturn
-    ? `<p class="sub">${existing.length ? 'Weitere Artikel zurücksenden? ' : ''}Wähle bei den Artikeln, die du zurücksenden möchtest, einen Grund und die Menge.</p>
+    ? `<p class="sub">${existing.length ? esc(t('retoure.chooseMore')) : ''}${esc(t('retoure.chooseIntro'))}</p>
     <form method="post" action="/retoure">
       <input type="hidden" name="t" value="${esc(token)}" />
       ${itemsHtml}
       ${shippingInfo}
-      <button type="submit">Retoure anmelden</button>
+      <button type="submit">${esc(t('retoure.submit'))}</button>
     </form>`
     : note;
 
   return layout(
-    'Retoure anmelden',
+    t('title.retoure'),
     `
-    <h1>Retoure anmelden</h1>
-    <p class="sub">Bestellung ${esc(data.orderNumber)}</p>
+    <h1>${esc(t('retoure.heading'))}</h1>
+    <p class="sub">${esc(t('status.order', { n: data.orderNumber }))}</p>
     ${existingBlock}
     ${formOrNote}
-    <a class="back" href="/">← Zurück</a>`,
+    <a class="back" href="/">${esc(t('retoure.back'))}</a>`,
   );
 }
 
@@ -517,7 +516,7 @@ export function renderRetoureConfirm(data, selections, token) {
       const it = itemById.get(String(s.posId));
       return `<div class="part" style="padding:12px 14px;">
         <b>${esc(s.quantity)}× ${esc(it?.name || 'Artikel')}</b>
-        <div style="color:#6b7280;font-size:13px;margin-top:2px;">Grund: ${esc(reasonById.get(String(s.reasonId)) || s.reasonId)}</div>
+        <div style="color:#6b7280;font-size:13px;margin-top:2px;">${esc(t('confirm.reason', { r: reasonById.get(String(s.reasonId)) || s.reasonId }))}</div>
       </div>`;
     })
     .join('');
@@ -529,18 +528,18 @@ export function renderRetoureConfirm(data, selections, token) {
     )
     .join('');
   return layout(
-    'Retoure prüfen',
+    t('title.retoureConfirm'),
     `
-    <h1>Retoure prüfen</h1>
-    <p class="sub">Bestellung ${esc(data.orderNumber)} · Bitte prüfe deine Auswahl.</p>
+    <h1>${esc(t('confirm.heading'))}</h1>
+    <p class="sub">${esc(t('confirm.sub', { n: data.orderNumber }))}</p>
     ${rows}
-    ${data.shippingMethod ? `<div class="eta"><small>Rücksendung mit</small><b>${esc(data.shippingMethod.designation)}</b></div>` : ''}
+    ${data.shippingMethod ? `<div class="eta"><small>${esc(t('retoure.shipWith'))}</small><b>${esc(data.shippingMethod.designation)}</b></div>` : ''}
     <form method="post" action="/retoure">
       <input type="hidden" name="t" value="${esc(token)}" />
       <input type="hidden" name="confirm" value="1" />
       ${hidden}
-      <button type="submit">Retoure verbindlich anmelden</button>
-      <button type="submit" name="edit" value="1" class="ghost">← Auswahl ändern</button>
+      <button type="submit">${esc(t('confirm.submit'))}</button>
+      <button type="submit" name="edit" value="1" class="ghost">${esc(t('confirm.edit'))}</button>
     </form>`,
   );
 }
@@ -555,36 +554,36 @@ export function renderRetoureDone({ orderNumber, returnId, docs = [], token }) {
     .join('');
   const noDocs =
     docs.length === 0
-      ? `<div class="eta"><small>Versandlabel</small>Dein Retourenlabel wird erstellt. Du erhältst es per E-Mail, sobald es bereitsteht.</div>`
+      ? `<div class="eta"><small>${esc(t('retoure.labelPendingShort'))}</small>${esc(t('done.labelPending'))}</div>`
       : '';
   return layout(
-    'Retoure angemeldet',
+    t('title.retoureDone'),
     `
-    <h1>Retoure angemeldet ✓</h1>
-    <p class="sub">${orderNumber ? `Bestellung ${esc(orderNumber)} · ` : ''}Retoure ${esc(returnId)}</p>
-    <div class="ok">Vielen Dank! Deine Retoure ist angemeldet. Drucke das Versandlabel aus und lege den Retourenschein bei.</div>
+    <h1>${esc(t('done.heading'))}</h1>
+    <p class="sub">${orderNumber ? esc(t('status.order', { n: orderNumber })) + ' · ' : ''}${esc(t('done.sub', { n: returnId }))}</p>
+    <div class="ok">${esc(t('done.text'))}</div>
     ${links}
     ${noDocs}
-    <a class="back" href="/">← Zur Startseite</a>`,
+    <a class="back" href="/">${esc(t('done.home'))}</a>`,
   );
 }
 
 // Lesbares Label je Dokumenttyp (Heuristik über keyword/filename/title).
 function docLabel(d) {
   const k = `${d.keyword || ''} ${d.filename || ''} ${d.title || ''}`.toLowerCase();
-  if (/label|versand|paketmarke|shipping/.test(k)) return 'Versandlabel herunterladen';
-  if (/retoure|return|beleg|schein|invoice|gutschrift/.test(k)) return 'Retourenschein herunterladen';
-  return `Dokument ${d.title || d.id} herunterladen`;
+  if (/label|versand|paketmarke|shipping/.test(k)) return t('retoure.downloadLabel');
+  if (/retoure|return|beleg|schein|invoice|gutschrift/.test(k)) return t('retoure.downloadReceipt');
+  return t('retoure.downloadDoc', { n: d.title || d.id });
 }
 
 // Fehler-/Hinweisseite im Retoure-Flow (ungültiges Token, keine Artikel, …).
 export function renderRetoureError(message) {
   return layout(
-    'Retoure',
+    t('title.retoureError'),
     `
-    <h1>Retoure</h1>
+    <h1>${esc(t('title.retoureError'))}</h1>
     <div class="err">${esc(message)}</div>
-    <a class="back" href="/">← Zur Startseite</a>`,
+    <a class="back" href="/">${esc(t('done.home'))}</a>`,
   );
 }
 
