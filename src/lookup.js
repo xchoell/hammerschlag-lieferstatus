@@ -295,6 +295,9 @@ async function buildPart({ order = null, fallbackNote = null, zip }) {
 
   return {
     orderNumber: f.documentNumber(order || record) || '',
+    // Nur echte Aufträge sind retournierbar (Lieferschein-Fallback hat keine
+    // verwertbare salesOrderId für die V1-Retouren-Anlage).
+    salesOrderId: order ? f.id(order) : null,
     recipientName,
     deliveryAddress,
     addressIsDeviating,
@@ -325,6 +328,9 @@ function finalizeGroup(parts, groupNumber) {
     isSplit: parts.length > 1,
     recipientName,
     deliveryAddress,
+    // Für die Retoure-Anmeldung: erster Teilauftrag mit echter salesOrderId.
+    // MVP0 bietet Retoure auf diesen Auftrag an (Multi-Order -> TODO).
+    primarySalesOrderId: parts.find((p) => p.salesOrderId)?.salesOrderId || null,
     parts,
   };
 }

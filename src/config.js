@@ -35,6 +35,11 @@ export const config = {
     // Pfad/URL zum Logo. Leer lassen -> Fallback auf Buchstaben-Kachel.
     logoUrl: process.env.BRAND_LOGO_URL ?? '/logo.svg',
   },
+  // Retoure-Flow. Stufe A: eine feste Retouren-Versandart (ID einer in Xentral
+  // als Retoure markierten Versandart, supportReturns=true). Über /admin wählbar.
+  returns: {
+    shippingMethodId: process.env.RETURN_SHIPPING_METHOD_ID || '',
+  },
   // DHL Shipment Tracking - Unified API (developer.dhl.com).
   dhl: {
     apiKey: process.env.DHL_API_KEY || '',

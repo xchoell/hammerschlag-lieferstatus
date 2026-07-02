@@ -8,20 +8,33 @@ import { config } from './config.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FILE = path.join(__dirname, '..', 'data', 'settings.json');
 
-// Über die Settings-Page editierbare Felder. key = Pfad im config-Objekt.
+// Sektionen der Settings-Page (linke Navigation). Reihenfolge = Anzeige.
+export const SECTIONS = [
+  { id: 'allgemein', label: 'Allgemein' },
+  { id: 'auftragsstatus', label: 'Auftragsstatus' },
+  { id: 'retouren', label: 'Retouren' },
+];
+export const DEFAULT_SECTION = 'allgemein';
+
+// Über die Settings-Page editierbare Felder. key = Pfad im config-Objekt,
+// section = Zuordnung zur linken Navigation.
 export const EDITABLE = [
-  { key: 'xentral.baseUrl', label: 'Xentral Basis-URL', type: 'text', hint: 'z. B. https://66d6a9db98f2b.xentral.biz' },
-  { key: 'xentral.token', label: 'Xentral PAT (Personal Access Token)', type: 'secret' },
-  { key: 'dhl.apiKey', label: 'DHL API Key', type: 'secret' },
-  { key: 'dhl.service', label: 'DHL Service-Code', type: 'text', hint: 'parcel-de, express, parcel-nl …' },
-  { key: 'expectedDeliveryWorkingDays', label: 'Voraussichtl. Liefertag: Werktage nach Auftragsanlage (0 = aus)', type: 'number', hint: 'z. B. 3 – nur Fallback, wenn kein Wunsch-/Carrier-Datum vorliegt' },
-  { key: 'deliveryOverdue.enabled', label: '„Lieferdatum überschritten"-Hinweis aktiv', type: 'bool' },
-  { key: 'deliveryOverdue.days', label: 'Hinweis nach X Tagen Überschreitung', type: 'number', hint: '0 = sobald der voraussichtliche Liefertag vorbei ist' },
-  { key: 'deliveredFallbackOnOrderStatus', label: '„Zugestellt" notfalls aus ERP-Status ableiten (Demo, ohne DHL-Key)', type: 'bool' },
-  { key: 'useMock', label: 'Mock-Modus (Demo-Daten statt echter Instanz)', type: 'bool' },
-  { key: 'brand.name', label: 'Firmenname', type: 'text' },
-  { key: 'brand.supportEmail', label: 'Support-E-Mail', type: 'text' },
-  { key: 'brand.color', label: 'Akzentfarbe (HEX)', type: 'text', hint: 'z. B. #1a1a1a' },
+  // ── Allgemein ──────────────────────────────────────────────────────────
+  { section: 'allgemein', key: 'xentral.baseUrl', label: 'Xentral Basis-URL', type: 'text', hint: 'z. B. https://66d6a9db98f2b.xentral.biz' },
+  { section: 'allgemein', key: 'xentral.token', label: 'Xentral PAT (Personal Access Token)', type: 'secret' },
+  { section: 'allgemein', key: 'brand.name', label: 'Firmenname', type: 'text' },
+  { section: 'allgemein', key: 'brand.supportEmail', label: 'Support-E-Mail', type: 'text' },
+  { section: 'allgemein', key: 'brand.color', label: 'Akzentfarbe (HEX)', type: 'text', hint: 'z. B. #1a1a1a' },
+  { section: 'allgemein', key: 'useMock', label: 'Mock-Modus (Demo-Daten statt echter Instanz)', type: 'bool' },
+  // ── Auftragsstatus ─────────────────────────────────────────────────────
+  { section: 'auftragsstatus', key: 'dhl.apiKey', label: 'DHL API Key', type: 'secret' },
+  { section: 'auftragsstatus', key: 'dhl.service', label: 'DHL Service-Code', type: 'text', hint: 'parcel-de, express, parcel-nl …' },
+  { section: 'auftragsstatus', key: 'expectedDeliveryWorkingDays', label: 'Voraussichtl. Liefertag: Werktage nach Auftragsanlage (0 = aus)', type: 'number', hint: 'z. B. 3 – nur Fallback, wenn kein Wunsch-/Carrier-Datum vorliegt' },
+  { section: 'auftragsstatus', key: 'deliveryOverdue.enabled', label: '„Lieferdatum überschritten"-Hinweis aktiv', type: 'bool' },
+  { section: 'auftragsstatus', key: 'deliveryOverdue.days', label: 'Hinweis nach X Tagen Überschreitung', type: 'number', hint: '0 = sobald der voraussichtliche Liefertag vorbei ist' },
+  { section: 'auftragsstatus', key: 'deliveredFallbackOnOrderStatus', label: '„Zugestellt" notfalls aus ERP-Status ableiten (Demo, ohne DHL-Key)', type: 'bool' },
+  // ── Retouren ───────────────────────────────────────────────────────────
+  { section: 'retouren', key: 'returns.shippingMethodId', label: 'Retouren-Versandart', type: 'select', hint: 'Mit dieser Versandart werden alle Retouren erstellt. Auswahl = in Xentral als Retoure markierte Versandarten (supportReturns).' },
 ];
 
 // Formularfeld-Name <-> config-Pfad (Punkte sind in name-Attributen unschön).
@@ -67,9 +80,13 @@ export function viewSettings() {
 }
 
 // Formular speichern: in config anwenden + persistieren.
-export function saveSettings(body = {}) {
+// section (optional): nur Felder dieser Sektion schreiben — sonst würden beim
+// Speichern einer Sektion die (nicht mitgesendeten) Felder anderer Sektionen
+// geleert. null = alle Felder (Abwärtskompatibilität).
+export function saveSettings(body = {}, section = null) {
   const stored = readRaw();
-  for (const f of EDITABLE) {
+  const fields = section ? EDITABLE.filter((f) => f.section === section) : EDITABLE;
+  for (const f of fields) {
     const raw = body[fieldName(f.key)];
     if (f.type === 'bool') {
       const v = raw === 'on' || raw === 'true' || raw === '1';

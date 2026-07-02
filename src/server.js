@@ -7,8 +7,19 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import { config, assertConfig } from './config.js';
 import { lookupStatus } from './lookup.js';
-import { loadSettings, viewSettings, saveSettings } from './settings.js';
+import { loadSettings, viewSettings, saveSettings, SECTIONS, DEFAULT_SECTION } from './settings.js';
 import { loadLogo, currentLogo, saveLogo, removeLogo, MAX_BYTES } from './logo.js';
+import {
+  orderToken,
+  verifyOrderToken,
+  labelToken,
+  verifyLabelToken,
+  loadReturnable,
+  submitReturn,
+  returnDocuments,
+  fetchReturnDocument,
+} from './returns.js';
+import { listReturnShippingMethods } from './xentral.js';
 import {
   renderForm,
   renderResult,
@@ -17,6 +28,7 @@ import {
   renderSettings,
   renderRetoure,
   renderRetoureDone,
+  renderRetoureError,
 } from './views.js';
 
 loadSettings(); // persistierte Overrides aus data/settings.json anwenden
@@ -48,7 +60,9 @@ app.use(
     },
   }),
 );
-app.use(express.urlencoded({ extended: false, limit: '4kb' }));
+// 32kb: das Retoure-Formular kann mehrere Positionen (Menge + Grund je Artikel)
+// posten. Weiterhin klein genug als Missbrauchsschutz; Writes sind rate-limited.
+app.use(express.urlencoded({ extended: false, limit: '32kb' }));
 
 // Rate-Limit nur auf den Lookup (Schutz gegen Enumeration der Nummern).
 const lookupLimiter = rateLimit({
@@ -74,6 +88,9 @@ app.post('/status', lookupLimiter, async (req, res) => {
   try {
     const status = await lookupStatus(query, zip);
     if (!status) return res.status(404).send(renderNotFound());
+    // Signiertes Retoure-Token: trägt den geprüften PLZ-Zweitfaktor in den
+    // Retoure-Flow, ohne die PLZ erneut abzufragen. Nur für echte Aufträge.
+    if (status.primarySalesOrderId) status.retoureToken = orderToken(status.primarySalesOrderId);
     return res.send(renderResult(status));
   } catch (err) {
     // Nie Interna nach außen geben.
@@ -150,9 +167,30 @@ app.get('/brand/logo', (_req, res) => {
   });
 });
 
-app.get('/admin', (req, res) => {
+// Settings-Felder + Live-Optionen für die Retouren-Versandart-Auswahl
+// (die in Xentral als Retoure markierten Versandarten, supportReturns=true).
+async function buildSettingsView() {
+  const fields = viewSettings();
+  const sel = fields.find((f) => f.key === 'returns.shippingMethodId');
+  if (sel) {
+    try {
+      const methods = await listReturnShippingMethods();
+      sel.options = methods.map((m) => ({ value: String(m.id), label: m.designation }));
+    } catch (err) {
+      console.warn('[admin] Retouren-Versandarten nicht ladbar:', err.status || err.message);
+      sel.options = [];
+    }
+  }
+  return fields;
+}
+
+// Nur bekannte Sektions-IDs zulassen (Default = Allgemein).
+const sectionOf = (v) => (SECTIONS.some((s) => s.id === v) ? v : DEFAULT_SECTION);
+
+app.get('/admin', async (req, res) => {
   if (!isAuthed(req)) return res.send(renderLogin());
-  res.send(renderSettings(viewSettings(), { warning: liveWarning() }));
+  const section = sectionOf(req.query.s);
+  res.send(renderSettings(await buildSettingsView(), { warning: liveWarning(), section, sections: SECTIONS }));
 });
 app.post('/admin/login', loginLimiter, (req, res) => {
   if (!passwordOk(req.body?.password)) {
@@ -161,22 +199,105 @@ app.post('/admin/login', loginLimiter, (req, res) => {
   res.setHeader('Set-Cookie', makeCookie());
   res.redirect('/admin');
 });
-app.post('/admin', parseAdminPost, (req, res) => {
+app.post('/admin', parseAdminPost, async (req, res) => {
   if (!isAuthed(req)) return res.status(401).send(renderLogin({ error: 'Bitte zuerst anmelden.' }));
-  saveSettings(req.body || {});
+  const section = sectionOf(req.body?.__section);
+  saveSettings(req.body || {}, section); // nur Felder der aktiven Sektion schreiben
   let error = req.logoError || null;
   if (!error && req.file) error = saveLogo(req.file.buffer);
   else if (!error && req.body?.removeLogo) removeLogo();
-  res.send(renderSettings(viewSettings(), { saved: !error, error, warning: liveWarning() }));
+  res.send(
+    renderSettings(await buildSettingsView(), { saved: !error, error, warning: liveWarning(), section, sections: SECTIONS }),
+  );
 });
 app.post('/admin/logout', (req, res) => {
   res.setHeader('Set-Cookie', 'admin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
   res.redirect('/admin');
 });
 
-// Retoure anmelden (aktuell Dummy: zeigt Platzhalter-Formular + Bestätigung).
-app.get('/retoure', (req, res) => res.send(renderRetoure(req.query.order)));
-app.post('/retoure', (req, res) => res.send(renderRetoureDone(req.body?.order)));
+// ── Retoure-Anmeldung (MVP0) ────────────────────────────────────────────────
+// Schutz: alle Retoure-Routen erfordern ein gültiges, signiertes Token aus dem
+// /status-Lookup (trägt den geprüften PLZ-Zweitfaktor). Writes rate-limited.
+const TOKEN_INVALID = 'Dieser Retoure-Link ist ungültig oder abgelaufen. Bitte rufe den Lieferstatus erneut auf.';
+const retoureLimiter = rateLimit({
+  windowMs: config.rateLimit.windowMs,
+  max: config.rateLimit.max,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) =>
+    res.status(429).send(renderRetoureError('Zu viele Anfragen. Bitte warte einen Moment.')),
+});
+
+// Schritt 1: Artikelauswahl + Gründe + Retouren-Versandart anzeigen.
+app.get('/retoure', async (req, res) => {
+  const salesOrderId = verifyOrderToken(req.query.t);
+  if (!salesOrderId) return res.status(403).send(renderRetoureError(TOKEN_INVALID));
+  try {
+    const data = await loadReturnable(salesOrderId);
+    if (!data || data.items.length === 0)
+      return res.send(renderRetoureError('Für diese Bestellung sind keine retournierbaren Artikel hinterlegt.'));
+    // Alle weiteren Fälle (alles bereits retourniert / keine Versandart /
+    // bestehende Retouren mit Label) rendert renderRetoure selbst inkl. der
+    // Label-Downloads bereits angemeldeter Retouren.
+    return res.send(renderRetoure(data, req.query.t));
+  } catch (err) {
+    console.error('[retoure] laden fehlgeschlagen:', err);
+    return res.status(500).send(renderRetoureError('Die Artikel konnten nicht geladen werden. Bitte versuche es später erneut.'));
+  }
+});
+
+// Schritt 2: Retoure anlegen + freigeben, dann Label/Beleg verlinken.
+app.post('/retoure', retoureLimiter, async (req, res) => {
+  const salesOrderId = verifyOrderToken(req.body?.t);
+  if (!salesOrderId) return res.status(403).send(renderRetoureError(TOKEN_INVALID));
+  try {
+    const data = await loadReturnable(salesOrderId); // erneut laden -> Mengen serverseitig validieren
+    // Auswahl = für die Position wurde ein Grund gewählt (kein JS nötig).
+    // Menge gegen die bestellte/gelieferte Menge clampen (keine Over-Returns).
+    const selections = (data?.items || [])
+      .map((item) => ({
+        posId: item.id,
+        // gegen die RESTmenge clampen: Bestellmenge − bereits retourniert.
+        // Verhindert Mehrfach-/Über-Retoure auch bei manipuliertem POST.
+        quantity: Math.max(0, Math.min(Number(req.body[`qty_${item.id}`]) || item.remaining, item.remaining)),
+        reasonId: req.body[`reason_${item.id}`] || '',
+      }))
+      .filter((s) => s.reasonId && s.quantity > 0);
+    if (!selections.some((s) => s.quantity > 0 && s.reasonId))
+      return res.send(renderRetoureError('Bitte mindestens einen Artikel mit Menge und Grund auswählen.'));
+
+    // Versandart kommt aus der Server-Config (Stufe A), NICHT aus dem Client.
+    const { returnId } = await submitReturn({
+      salesOrderId,
+      selections,
+      shippingMethodId: config.returns.shippingMethodId || '',
+    });
+    const docs = await returnDocuments(returnId);
+    return res.send(
+      renderRetoureDone({ orderNumber: data?.orderNumber, returnId, docs, token: labelToken(returnId) }),
+    );
+  } catch (err) {
+    console.error('[retoure] anlegen fehlgeschlagen:', err);
+    return res.status(500).send(renderRetoureError('Die Retoure konnte nicht angelegt werden. Bitte versuche es später erneut.'));
+  }
+});
+
+// Label/Beleg streamen (token-geschützt, kein direkter Zugriff ohne gültiges Token).
+app.get('/retoure/label', async (req, res) => {
+  const returnId = verifyLabelToken(req.query.t);
+  if (!returnId) return res.status(403).end();
+  const documentId = String(req.query.doc || '').replace(/[^0-9]/g, '');
+  if (!documentId) return res.status(400).end();
+  try {
+    const { contentType, buffer } = await fetchReturnDocument(returnId, documentId);
+    res.type(contentType);
+    res.setHeader('Content-Disposition', `inline; filename="retoure-${returnId}-${documentId}"`);
+    return res.send(buffer);
+  } catch (err) {
+    console.error('[retoure/label] Download fehlgeschlagen:', err.status || err.message);
+    return res.status(404).end();
+  }
+});
 
 app.use((_req, res) => res.status(404).send(renderNotFound()));
 

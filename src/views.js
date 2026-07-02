@@ -37,7 +37,7 @@ function carrierSummary(shipments) {
 
 const brand = config.brand;
 
-function layout(title, body) {
+function layout(title, body, opts = {}) {
   return `<!doctype html>
 <html lang="de">
 <head>
@@ -136,10 +136,24 @@ function layout(title, body) {
   .foot { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 16px; }
   .foot a { color: #6b7280; }
   a.back { display: inline-block; margin-top: 14px; font-size: 13px; color: #6b7280; }
+  /* Admin: breitere Variante + linke Sektions-Navigation */
+  .wrap--wide { max-width: 760px; }
+  .admin { display: flex; gap: 20px; align-items: flex-start; }
+  .admin-nav { flex: 0 0 160px; display: flex; flex-direction: column; gap: 4px; }
+  .admin-nav a { display: block; padding: 9px 12px; border-radius: 8px; text-decoration: none;
+    color: #374151; font-size: 14px; }
+  .admin-nav a:hover { background: #f3f4f6; }
+  .admin-nav a.active { background: var(--accent); color: #fff; font-weight: 600; }
+  .admin-content { flex: 1; min-width: 0; }
+  @media (max-width: 560px) {
+    .admin { flex-direction: column; }
+    .admin-nav { flex: 1 1 auto; flex-direction: row; flex-wrap: wrap; }
+    .admin-nav a { flex: 1; text-align: center; }
+  }
 </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="wrap${opts.wide ? ' wrap--wide' : ''}">
     <div class="card">
       <div class="head${brand.logoUrl ? ' head--logo' : ''}">
         ${brand.logoUrl
@@ -158,7 +172,7 @@ export function renderForm({ error, query } = {}) {
   return layout(
     'Lieferstatus',
     `
-    <h1>Wo ist meine Lieferung?</h1>
+    <h1>Auftragsstatus und Retourenportal</h1>
     ${error ? `<div class="err">${esc(error)}</div>` : ''}
     <form method="post" action="/status" autocomplete="off">
       <div class="label-row">
@@ -214,9 +228,11 @@ function addressHtml(a, { deviating = false } = {}) {
     .join('')}</div>`;
 }
 
-// Sekundär-Button "Retoure anmelden" (aktuell nur Dummy, führt auf /retoure).
-function retoureButtonHtml(orderNumber) {
-  return `<a class="btn-outline" href="/retoure?order=${encodeURIComponent(orderNumber || '')}">Retoure anmelden</a>`;
+// Sekundär-Button "Retoure anmelden". Nur mit gültigem Token (= Auftrag mit
+// serverseitig geprüftem PLZ-Zweitfaktor). Ohne Token kein Button.
+function retoureButtonHtml(token) {
+  if (!token) return '';
+  return `<a class="btn-outline" href="/retoure?t=${encodeURIComponent(token)}">Retoure anmelden</a>`;
 }
 
 // Verlauf eines normalen Auftrags (4 Stufen).
@@ -316,7 +332,7 @@ function renderSingle(result, s) {
     ${greetingHtml(result.recipientName)}
     <p class="sub">Bestellung ${esc(s.orderNumber)}</p>
     ${partStatusBlock(s)}
-    ${s.cancelled ? '' : retoureButtonHtml(s.orderNumber)}
+    ${s.cancelled ? '' : retoureButtonHtml(result.retoureToken)}
     <a class="back" href="/">← Andere Bestellung verfolgen</a>`,
   );
 }
@@ -356,42 +372,146 @@ function renderGroup(result, parts) {
     <div class="ok">Dein Auftrag wurde in mehrere Teillieferungen aufgeteilt. Unten siehst du den Status und die Lieferadresse jedes Teilauftrags.</div>
     <div class="group-summary">${esc(summary)}</div>
     ${partsHtml}
-    ${retoureButtonHtml(result.groupNumber)}
+    ${retoureButtonHtml(result.retoureToken)}
     <a class="back" href="/">← Andere Bestellung verfolgen</a>`,
   );
 }
 
-// Dummy-Seite "Retoure anmelden" - noch ohne echte Funktion.
-export function renderRetoure(orderNumber) {
+// Schritt 1: Artikelauswahl. Ein Artikel gilt als ausgewählt, sobald ein Grund
+// gewählt ist - kein Client-JS nötig (CSP erlaubt keins).
+export function renderRetoure(data, token) {
+  const reasonOptions = data.reasons
+    .map((r) => `<option value="${esc(r.id)}">${esc(r.designation)}</option>`)
+    .join('');
+  const itemsHtml = data.items
+    .map((it) => {
+      const head = `<div><b>${esc(it.name)}</b>${it.number ? ` <span style="color:#6b7280;font-size:12px;">· ${esc(it.number)}</span>` : ''}</div>`;
+      // Vollständig retourniert -> ausgegraut, keine Eingabefelder.
+      if (it.remaining <= 0) {
+        return `
+    <div class="part" style="padding:12px 14px;opacity:.5;">
+      ${head}
+      <div style="color:#6b7280;font-size:12px;margin-top:4px;">Bereits vollständig retourniert (${esc(it.returned)} von ${esc(it.quantity)})</div>
+    </div>`;
+      }
+      const info =
+        it.remaining < it.quantity
+          ? `Bestellt: ${esc(it.quantity)} · bereits retourniert: ${esc(it.returned)} · noch retournierbar: <b>${esc(it.remaining)}</b>`
+          : `Bestellt: ${esc(it.quantity)}`;
+      return `
+    <div class="part" style="padding:12px 14px;">
+      ${head}
+      <div style="color:#6b7280;font-size:12px;margin-top:2px;">${info}</div>
+      <div style="display:flex;gap:10px;margin-top:10px;">
+        <div style="flex:0 0 84px;">
+          <label for="qty_${esc(it.id)}" style="margin:0 0 4px;">Menge</label>
+          <input id="qty_${esc(it.id)}" name="qty_${esc(it.id)}" type="number" min="1" max="${esc(it.remaining)}" value="${esc(it.remaining)}" />
+        </div>
+        <div style="flex:1;">
+          <label for="reason_${esc(it.id)}" style="margin:0 0 4px;">Grund</label>
+          <select id="reason_${esc(it.id)}" name="reason_${esc(it.id)}">
+            <option value="">— nicht zurücksenden —</option>
+            ${reasonOptions}
+          </select>
+        </div>
+      </div>
+    </div>`;
+    })
+    .join('');
+  // Stufe A: Versandart ist fix konfiguriert -> nur Anzeige, keine Kundenauswahl.
+  const shippingInfo = data.shippingMethod
+    ? `<div class="eta"><small>Rücksendung mit</small><b>${esc(data.shippingMethod.designation)}</b></div>`
+    : '';
+
+  // Bereits angemeldete Retouren: Label/Beleg direkt zum Download anbieten.
+  const existing = data.existingReturns || [];
+  const existingBlock = existing.length
+    ? `<div class="ok">Du hast für diese Bestellung bereits ${existing.length === 1 ? 'eine Retoure' : esc(existing.length) + ' Retouren'} angemeldet. Hier kannst du dein Versandlabel erneut herunterladen.</div>
+    ${existing
+      .map((er) => {
+        const links = (er.documents || []).length
+          ? er.documents
+              .map(
+                (d) =>
+                  `<a class="track" href="/retoure/label?t=${encodeURIComponent(er.labelToken)}&doc=${encodeURIComponent(d.id)}" target="_blank" rel="noopener">${esc(docLabel(d))} ↗</a>`,
+              )
+              .join('')
+          : `<div class="eta"><small>Versandlabel</small>Wird noch erstellt – du erhältst es per E-Mail, sobald es bereitsteht.</div>`;
+        return `<div class="part" style="padding:12px 14px;">
+          <div><b>Retoure ${esc(er.documentNumber || er.returnId)}</b></div>
+          ${links}
+        </div>`;
+      })
+      .join('')}`
+    : '';
+
+  // Formular nur, wenn noch etwas retournierbar ist UND eine Versandart konfiguriert ist.
+  const hasReturnable = data.items.some((i) => i.remaining > 0);
+  const canReturn = hasReturnable && !!data.shippingMethod;
+  const note = !hasReturnable
+    ? '<p class="sub">Für diese Bestellung sind alle Artikel bereits zur Retoure angemeldet.</p>'
+    : '<p class="sub">Eine neue Retoure ist derzeit nicht möglich. Bitte kontaktiere den Kundenservice.</p>';
+  const formOrNote = canReturn
+    ? `<p class="sub">${existing.length ? 'Weitere Artikel zurücksenden? ' : ''}Wähle bei den Artikeln, die du zurücksenden möchtest, einen Grund und die Menge.</p>
+    <form method="post" action="/retoure">
+      <input type="hidden" name="t" value="${esc(token)}" />
+      ${itemsHtml}
+      ${shippingInfo}
+      <button type="submit">Retoure anmelden</button>
+    </form>`
+    : note;
+
   return layout(
     'Retoure anmelden',
     `
     <h1>Retoure anmelden</h1>
-    ${orderNumber ? `<p class="sub">Bestellung ${esc(orderNumber)}</p>` : ''}
-    <div class="ok">Demo: Diese Retoure-Anmeldung ist ein Platzhalter und löst noch keinen echten Vorgang aus.</div>
-    <form method="post" action="/retoure">
-      <input type="hidden" name="order" value="${esc(orderNumber || '')}" />
-      <label for="reason">Grund der Retoure</label>
-      <select id="reason" name="reason">
-        <option>Falschlieferung</option>
-        <option>Artikel beschädigt</option>
-        <option>Zu viel bestellt</option>
-        <option>Sonstiges</option>
-      </select>
-      <button type="submit">Retoure absenden</button>
-    </form>
-    <a class="back" href="/">← Zurück zur Eingabe</a>`,
+    <p class="sub">Bestellung ${esc(data.orderNumber)}</p>
+    ${existingBlock}
+    ${formOrNote}
+    <a class="back" href="/">← Zurück</a>`,
   );
 }
 
-export function renderRetoureDone(orderNumber) {
+// Schritt 2: Bestätigung + Label/Beleg-Download (falls Dokumente bereitstehen).
+export function renderRetoureDone({ orderNumber, returnId, docs = [], token }) {
+  const links = docs
+    .map(
+      (d) =>
+        `<a class="track" href="/retoure/label?t=${encodeURIComponent(token)}&doc=${encodeURIComponent(d.id)}" target="_blank" rel="noopener">${esc(docLabel(d))} ↗</a>`,
+    )
+    .join('');
+  const noDocs =
+    docs.length === 0
+      ? `<div class="eta"><small>Versandlabel</small>Dein Retourenlabel wird erstellt. Du erhältst es per E-Mail, sobald es bereitsteht.</div>`
+      : '';
   return layout(
     'Retoure angemeldet',
     `
     <h1>Retoure angemeldet ✓</h1>
-    ${orderNumber ? `<p class="sub">Bestellung ${esc(orderNumber)}</p>` : ''}
-    <div class="ok">Vielen Dank! Deine Retoure-Anmeldung ist eingegangen.<br><b>(Demo – es wird noch kein echter Vorgang erzeugt.)</b></div>
-    <a class="back" href="/">← Zurück zur Startseite</a>`,
+    <p class="sub">${orderNumber ? `Bestellung ${esc(orderNumber)} · ` : ''}Retoure ${esc(returnId)}</p>
+    <div class="ok">Vielen Dank! Deine Retoure ist angemeldet. Drucke das Versandlabel aus und lege den Retourenschein bei.</div>
+    ${links}
+    ${noDocs}
+    <a class="back" href="/">← Zur Startseite</a>`,
+  );
+}
+
+// Lesbares Label je Dokumenttyp (Heuristik über keyword/filename/title).
+function docLabel(d) {
+  const k = `${d.keyword || ''} ${d.filename || ''} ${d.title || ''}`.toLowerCase();
+  if (/label|versand|paketmarke|shipping/.test(k)) return 'Versandlabel herunterladen';
+  if (/retoure|return|beleg|schein|invoice|gutschrift/.test(k)) return 'Retourenschein herunterladen';
+  return `Dokument ${d.title || d.id} herunterladen`;
+}
+
+// Fehler-/Hinweisseite im Retoure-Flow (ungültiges Token, keine Artikel, …).
+export function renderRetoureError(message) {
+  return layout(
+    'Retoure',
+    `
+    <h1>Retoure</h1>
+    <div class="err">${esc(message)}</div>
+    <a class="back" href="/">← Zur Startseite</a>`,
   );
 }
 
@@ -410,12 +530,32 @@ export function renderLogin({ error } = {}) {
   );
 }
 
-export function renderSettings(fields, { saved, warning, error } = {}) {
+export function renderSettings(fields, { saved, warning, error, section = 'allgemein', sections = [] } = {}) {
+  const active = sections.find((s) => s.id === section) || sections[0] || { id: section, label: 'Einstellungen' };
+  const nav = sections
+    .map(
+      (s) =>
+        `<a href="/admin?s=${esc(s.id)}"${s.id === active.id ? ' class="active"' : ''}>${esc(s.label)}</a>`,
+    )
+    .join('');
+
   const rows = fields
+    .filter((field) => field.section === active.id)
     .map((field) => {
       const name = field.key.replace(/\./g, '__');
       if (field.type === 'bool') {
         return `<label class="chk"><input type="checkbox" name="${name}" ${field.value ? 'checked' : ''} /> <span>${esc(field.label)}</span></label>`;
+      }
+      if (field.type === 'select') {
+        const opts = (field.options || [])
+          .map(
+            (o) =>
+              `<option value="${esc(o.value)}"${String(o.value) === String(field.value) ? ' selected' : ''}>${esc(o.label)}</option>`,
+          )
+          .join('');
+        return `<label for="${name}">${esc(field.label)}</label>
+      <select id="${name}" name="${name}"><option value="">— nicht gesetzt —</option>${opts}</select>
+      ${field.hint ? `<p class="hint">${esc(field.hint)}</p>` : ''}`;
       }
       const isSecret = field.type === 'secret';
       const isNumber = field.type === 'number';
@@ -430,29 +570,40 @@ export function renderSettings(fields, { saved, warning, error } = {}) {
     })
     .join('');
 
+  // Logo nur in der Allgemein-Sektion (gehört zum Branding).
   const logo = logoStatus();
-  const logoBlock = `
+  const logoBlock =
+    active.id === 'allgemein'
+      ? `
     <label for="logo">Logo</label>
     ${logo.url
       ? `<div class="eta logo-preview"><img src="${esc(logo.url)}" alt="Aktuelles Logo" /></div>`
       : '<p class="sub">Kein Logo gesetzt – es wird die Buchstaben-Kachel angezeigt.</p>'}
     <input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" class="file" />
     <p class="hint">PNG, JPG, GIF, WebP oder SVG · max. 1 MB · max. 1000px Breite.</p>
-    ${logo.custom ? '<label class="chk"><input type="checkbox" name="removeLogo" /> <span>Hochgeladenes Logo entfernen (Standard verwenden)</span></label>' : ''}`;
+    ${logo.custom ? '<label class="chk"><input type="checkbox" name="removeLogo" /> <span>Hochgeladenes Logo entfernen (Standard verwenden)</span></label>' : ''}`
+      : '';
 
   return layout(
     'Einstellungen',
     `
-    <h1>Einstellungen</h1>
-    <p class="sub">Änderungen wirken sofort und werden gespeichert.</p>
-    ${saved ? '<div class="ok">Gespeichert.</div>' : ''}
-    ${error ? `<div class="err">${esc(error)}</div>` : ''}
-    ${warning ? `<div class="err">${esc(warning)}</div>` : ''}
-    <form method="post" action="/admin" enctype="multipart/form-data" autocomplete="off">
-      ${rows}
-      ${logoBlock}
-      <button type="submit">Speichern</button>
-    </form>
-    <form method="post" action="/admin/logout"><button type="submit" class="ghost">Abmelden</button></form>`,
+    <div class="admin">
+      <nav class="admin-nav">${nav}</nav>
+      <div class="admin-content">
+        <h1>${esc(active.label)}</h1>
+        <p class="sub">Änderungen wirken sofort und werden gespeichert.</p>
+        ${saved ? '<div class="ok">Gespeichert.</div>' : ''}
+        ${error ? `<div class="err">${esc(error)}</div>` : ''}
+        ${warning ? `<div class="err">${esc(warning)}</div>` : ''}
+        <form method="post" action="/admin" enctype="multipart/form-data" autocomplete="off">
+          <input type="hidden" name="__section" value="${esc(active.id)}" />
+          ${rows}
+          ${logoBlock}
+          <button type="submit">Speichern</button>
+        </form>
+        <form method="post" action="/admin/logout"><button type="submit" class="ghost">Abmelden</button></form>
+      </div>
+    </div>`,
+    { wide: true },
   );
 }
