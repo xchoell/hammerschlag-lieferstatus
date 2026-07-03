@@ -95,6 +95,11 @@ editable in the native UI. Context/parity research: PLAN.md in the portal repo.
    SOP-Feature-Flag `returns-portal-settings`, `renderProperty: 'name'` für die
    Referenzen project + shippingMethod (Liste zeigt Namen statt IDs; im Browser
    verifiziert: „Standard" / „DHL Retoure")
+5. `2413a7f58f8` — Produktentscheide 2026-07-03: Fristbasis nur noch
+   „Versanddatum" (Enum auf `shipping` reduziert, Ablehnung der alten Werte
+   getestet), „Nur zugestellte Bestellungen" im Formular ausgeblendet (Feld
+   bleibt in der API), Login-Variante „Nummer + Kundennummer"
+   (`customerNumber`) ergänzt — alles im Browser verifiziert; 24/24 Tests
 
 > Optional vor dem Push: Commits 3+4 in 1+2 squashen (History-Kosmetik);
 > der Diff ist identisch.

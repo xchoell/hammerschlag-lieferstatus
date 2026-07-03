@@ -646,7 +646,9 @@ export function renderSettings(fields, { saved, warning, error, section = 'allge
   // returnsPortalSetting, eine Zeile pro Projekt) — hier nur Hinweis + Link.
   if (active.id === 'retouren') {
     const base = config.returnsSettingsApi?.baseUrl || config.xentral.baseUrl;
-    const xentralUrl = base ? `${base}/app/settings/inventory-and-fulfillment/returnsPortalSetting` : '';
+    // Kebab-case wie in der Settings-Navigation — die camelCase-Variante lädt
+    // nur den Settings-Rahmen ohne vorausgewähltes Modul.
+    const xentralUrl = base ? `${base}/app/settings/inventory-and-fulfillment/returns-portal-setting` : '';
     return layout(
       'Einstellungen',
       `
