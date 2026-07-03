@@ -46,8 +46,10 @@ export const config = {
       privacy: process.env.BRAND_LINK_PRIVACY || '',
     },
   },
-  // Retoure-Flow. Stufe A: eine feste Retouren-Versandart (ID einer in Xentral
-  // als Retoure markierten Versandart, supportReturns=true). Über /admin wählbar.
+  // Retoure-Flow. Seit B5 sind das nur noch FALLBACK-Werte: die effektiven
+  // Settings kommen pro Projekt aus Xentral (Business Entity
+  // returnsPortalSetting, s. xentral-settings.js). Diese Werte greifen, wenn
+  // der Remote-Sync aus ist, die API ausfällt oder das Projekt keine Zeile hat.
   returns: {
     shippingMethodId: process.env.RETURN_SHIPPING_METHOD_ID || '',
     // Retoure nur für zugestellte Sendungen zulassen (Parität zum alten
@@ -55,6 +57,16 @@ export const config = {
     onlyDelivered: bool(process.env.RETURNS_ONLY_DELIVERED, true),
     // Artikelpreise (brutto) in der Retoure-Auswahl anzeigen. Default aus.
     showPrices: bool(process.env.RETURNS_SHOW_PRICES, false),
+  },
+  // Settings-Sync aus Xentral (B5). Standard: gleiche Instanz + gleicher PAT
+  // wie xentral.* (leer lassen). Die Overrides braucht man nur, wenn die
+  // Settings-Entity auf einer anderen Instanz liegt als die Auftragsdaten
+  // (lokales Dev-Setup: Aufträge = Cloud-Testinstanz, Entity = Worktree).
+  returnsSettingsApi: {
+    enabled: bool(process.env.RETURNS_REMOTE_SETTINGS, true),
+    baseUrl: (process.env.RETURNS_SETTINGS_BASE_URL || '').replace(/\/+$/, ''),
+    token: process.env.RETURNS_SETTINGS_TOKEN || '',
+    cacheTtlMs: int(process.env.RETURNS_SETTINGS_CACHE_TTL_MS, 60_000),
   },
   // DHL Shipment Tracking - Unified API (developer.dhl.com).
   dhl: {

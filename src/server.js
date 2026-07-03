@@ -20,7 +20,7 @@ import {
   returnDocuments,
   fetchReturnDocument,
 } from './returns.js';
-import { listReturnShippingMethods } from './xentral.js';
+import { getReturnsSettings } from './xentral-settings.js';
 import {
   renderForm,
   renderResult,
@@ -94,14 +94,19 @@ app.post('/status', lookupLimiter, async (req, res) => {
     if (!status) return res.status(404).send(renderNotFound());
     // Signiertes Retoure-Token: trägt den geprüften PLZ-Zweitfaktor in den
     // Retoure-Flow, ohne die PLZ erneut abzufragen. Nur für echte Aufträge.
-    // Delivered-Gate: ohne Zustellung (falls aktiv) gibt es keinen Token
-    // -> kein Button; der Zustell-Status wandert zusätzlich in den Token,
-    // damit /retoure das Gate unabhängig erneut prüfen kann.
-    if (
-      status.primarySalesOrderId &&
-      (!config.returns.onlyDelivered || status.primaryDelivered)
-    ) {
-      status.retoureToken = orderToken(status.primarySalesOrderId, !!status.primaryDelivered);
+    // Gates kommen seit B5 aus den Xentral-Settings des Projekts (Fallback
+    // lokal): active=false -> kein Button; Delivered-Gate wie gehabt. Der
+    // Zustell-Status und das Projekt wandern in den Token, damit /retoure die
+    // Gates unabhängig erneut prüfen kann.
+    if (status.primarySalesOrderId) {
+      const rs = await getReturnsSettings(status.primaryProjectId);
+      if (rs.active && (!rs.onlyDelivered || status.primaryDelivered)) {
+        status.retoureToken = orderToken(
+          status.primarySalesOrderId,
+          !!status.primaryDelivered,
+          status.primaryProjectId || '',
+        );
+      }
     }
     return res.send(renderResult(status));
   } catch (err) {
@@ -179,21 +184,11 @@ app.get('/brand/logo', (_req, res) => {
   });
 });
 
-// Settings-Felder + Live-Optionen für die Retouren-Versandart-Auswahl
-// (die in Xentral als Retoure markierten Versandarten, supportReturns=true).
-async function buildSettingsView() {
-  const fields = viewSettings();
-  const sel = fields.find((f) => f.key === 'returns.shippingMethodId');
-  if (sel) {
-    try {
-      const methods = await listReturnShippingMethods();
-      sel.options = methods.map((m) => ({ value: String(m.id), label: m.designation }));
-    } catch (err) {
-      console.warn('[admin] Retouren-Versandarten nicht ladbar:', err.status || err.message);
-      sel.options = [];
-    }
-  }
-  return fields;
+// Settings-Felder für die Admin-Ansicht. Die Retouren-Sektion hat seit B5
+// keine editierbaren Felder mehr (Pflege in Xentral) — die View rendert dort
+// einen Hinweis samt Link auf die Xentral-Settings-Seite.
+function buildSettingsView() {
+  return viewSettings();
 }
 
 // Nur bekannte Sektions-IDs zulassen (Default = Allgemein).
@@ -246,11 +241,13 @@ const retoureLimiter = rateLimit({
 app.get('/retoure', async (req, res) => {
   const verified = verifyOrderToken(req.query.t);
   if (!verified) return res.status(403).send(renderRetoureError(t('err.tokenInvalid')));
-  if (config.returns.onlyDelivered && !verified.delivered)
+  const settings = await getReturnsSettings(verified.projectId);
+  if (!settings.active) return res.status(403).send(renderRetoureError(t('err.returnsDisabled')));
+  if (settings.onlyDelivered && !verified.delivered)
     return res.status(403).send(renderRetoureError(t('err.notDelivered')));
   const salesOrderId = verified.salesOrderId;
   try {
-    const data = await loadReturnable(salesOrderId, currentLocale());
+    const data = await loadReturnable(salesOrderId, currentLocale(), settings);
     if (!data || data.items.length === 0)
       return res.send(renderRetoureError(t('err.noItems')));
     // Alle weiteren Fälle (alles bereits retourniert / keine Versandart /
@@ -267,11 +264,13 @@ app.get('/retoure', async (req, res) => {
 app.post('/retoure', retoureLimiter, async (req, res) => {
   const verified = verifyOrderToken(req.body?.t);
   if (!verified) return res.status(403).send(renderRetoureError(t('err.tokenInvalid')));
-  if (config.returns.onlyDelivered && !verified.delivered)
+  const settings = await getReturnsSettings(verified.projectId);
+  if (!settings.active) return res.status(403).send(renderRetoureError(t('err.returnsDisabled')));
+  if (settings.onlyDelivered && !verified.delivered)
     return res.status(403).send(renderRetoureError(t('err.notDelivered')));
   const salesOrderId = verified.salesOrderId;
   try {
-    const data = await loadReturnable(salesOrderId, currentLocale()); // erneut laden -> Mengen serverseitig validieren
+    const data = await loadReturnable(salesOrderId, currentLocale(), settings); // erneut laden -> Mengen serverseitig validieren
     // Auswahl = für die Position wurde ein Grund gewählt (kein JS nötig).
     // Menge gegen die bestellte/gelieferte Menge clampen (keine Over-Returns).
     const selections = (data?.items || [])
@@ -292,11 +291,12 @@ app.post('/retoure', retoureLimiter, async (req, res) => {
     // Zwischenschritt: erst die Zusammenfassung zeigen, anlegen nur mit confirm=1.
     if (req.body.confirm !== '1') return res.send(renderRetoureConfirm(data, selections, req.body.t));
 
-    // Versandart kommt aus der Server-Config (Stufe A), NICHT aus dem Client.
+    // Versandart kommt aus den Server-Settings (Xentral bzw. lokaler
+    // Fallback, Stufe A), NICHT aus dem Client.
     const { returnId } = await submitReturn({
       salesOrderId,
       selections,
-      shippingMethodId: config.returns.shippingMethodId || '',
+      shippingMethodId: settings.shippingMethodId || '',
     });
     const docs = await returnDocuments(returnId);
     return res.send(

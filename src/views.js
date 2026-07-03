@@ -642,6 +642,31 @@ export function renderSettings(fields, { saved, warning, error, section = 'allge
     })
     .join('');
 
+  // Retouren werden seit B5 in Xentral gepflegt (Business Entity
+  // returnsPortalSetting, eine Zeile pro Projekt) — hier nur Hinweis + Link.
+  if (active.id === 'retouren') {
+    const base = config.returnsSettingsApi?.baseUrl || config.xentral.baseUrl;
+    const xentralUrl = base ? `${base}/app/settings/inventory-and-fulfillment/returnsPortalSetting` : '';
+    return layout(
+      'Einstellungen',
+      `
+    <div class="admin">
+      <nav class="admin-nav">${nav}</nav>
+      <div class="admin-content">
+        <h1>${esc(active.label)}</h1>
+        <p class="sub">Die Retouren-Einstellungen werden in Xentral gepflegt — pro Projekt unter
+        Einstellungen &rsaquo; Lager &amp; Fulfillment &rsaquo; Retourenportal. Das Portal liest sie
+        zur Laufzeit (Änderungen wirken innerhalb ~1 Minute, ohne Neustart).</p>
+        ${xentralUrl ? `<p><a href="${esc(xentralUrl)}" target="_blank" rel="noopener">Retouren-Einstellungen in Xentral öffnen &rarr;</a></p>` : ''}
+        <p class="hint">Fallback bei API-Ausfall bzw. ohne Settings-Zeile fürs Projekt: die lokalen
+        .env-Werte RETURN_SHIPPING_METHOD_ID, RETURNS_ONLY_DELIVERED, RETURNS_SHOW_PRICES.</p>
+        <form method="post" action="/admin/logout"><button type="submit" class="ghost">Abmelden</button></form>
+      </div>
+    </div>`,
+      { wide: true },
+    );
+  }
+
   // Logo nur in der Allgemein-Sektion (gehört zum Branding).
   const logo = logoStatus();
   const logoBlock =

@@ -255,6 +255,10 @@ export const f = {
     pick(r, ['externalOrderNumber', 'internetOrderNumber', 'shopOrderNumber', 'externalReference']),
   customerNumber: (r) => pick(r, ['customerNumber']),
 
+  // Projekt des Auftrags (v1 UND v3 liefern project.id — live verifiziert).
+  // Schlüssel für die projektbezogenen Retouren-Settings aus Xentral.
+  projectId: (r) => pick(r, ['project.id', 'projectId', 'projekt']),
+
   // Liefer-PLZ (zur serverseitigen Prüfung des zweiten Faktors).
   // effectiveAddresses.shipTo = tatsächliche Versandadresse (deckt abweichende ab).
   deliveryZip: (r) =>

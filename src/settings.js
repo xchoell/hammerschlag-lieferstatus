@@ -40,9 +40,12 @@ export const EDITABLE = [
   { section: 'auftragsstatus', key: 'deliveryOverdue.days', label: 'Hinweis nach X Tagen Überschreitung', type: 'number', hint: '0 = sobald der voraussichtliche Liefertag vorbei ist' },
   { section: 'auftragsstatus', key: 'deliveredFallbackOnOrderStatus', label: '„Zugestellt" notfalls aus ERP-Status ableiten (Demo, ohne DHL-Key)', type: 'bool' },
   // ── Retouren ───────────────────────────────────────────────────────────
-  { section: 'retouren', key: 'returns.shippingMethodId', label: 'Retouren-Versandart', type: 'select', hint: 'Mit dieser Versandart werden alle Retouren erstellt. Auswahl = in Xentral als Retoure markierte Versandarten (supportReturns).' },
-  { section: 'retouren', key: 'returns.onlyDelivered', label: 'Retoure erst nach Zustellung erlauben', type: 'bool' },
-  { section: 'retouren', key: 'returns.showPrices', label: 'Artikelpreise in der Retoure-Auswahl anzeigen', type: 'bool' },
+  // Seit B5 KEINE editierbaren Felder mehr: die Retouren-Settings werden pro
+  // Projekt in Xentral gepflegt (Business Entity returnsPortalSetting) und vom
+  // Portal zur Laufzeit gelesen (s. xentral-settings.js). Die Sektion bleibt
+  // in SECTIONS und zeigt nur noch den Hinweis + Link (views.js).
+  // Lokale Fallback-Werte (API-Ausfall/Bootstrap): .env RETURN_SHIPPING_METHOD_ID,
+  // RETURNS_ONLY_DELIVERED, RETURNS_SHOW_PRICES.
 ];
 
 // Formularfeld-Name <-> config-Pfad (Punkte sind in name-Attributen unschön).

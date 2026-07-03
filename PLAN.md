@@ -113,10 +113,20 @@ erzwingt die Gates serverseitig. Kein iFrame, keine Zweitpflege, kein Zweit-Logi
   (Feature-Request liegt vor, generisch über LabelProcessResolver). Interim:
   Versandzentrum-Verarbeitung; Portal zeigt „Label kommt per E-Mail".
 - **P1 — Settings-Entity in Xentral** (Worktree, `generate-business-entity`):
-  `ReturnsPortalSettings` pro Projekt: aktiv, Versandart, Frist (+Basis:
-  Bestell-/Versand-/Lieferdatum), delivered-Gate, Bestelldatum-Limit,
-  Mehrfach-Limit, Projekt-Scope, Preise zeigen, BOM-Split, Auto-Gutschrift,
-  Service-E-Mail, Branding (Logo/Farben/Name/Links), Sprachen.
+  `ReturnsPortalSettings` pro Projekt. **Katalog FINAL (B0, 2026-07-02):**
+  Tabelle `returns_portal_settings`, eine Zeile pro Projekt:
+  `project_id` (unique, FK projekt) · `active` (bool, 0) ·
+  `shipping_method_id` (FK versandarten, nullable) ·
+  `return_deadline_days` (int, 0=aus) · `deadline_basis` (enum order|shipping|delivery, 'order') ·
+  `only_delivered` (bool, 1) · `order_date_limit_hours` (int, 0=aus) ·
+  `multi_return_limit` (bool, 0) · `only_project_orders` (bool, 1) ·
+  `show_prices` (bool, 0) · `bom_split` (bool, 0) · `auto_credit_note` (bool, 0) ·
+  `service_email` (nullable) · `email_account_id` (nullable) ·
+  `login_variant` (enum zip|email, 'zip' — Entscheid: PLZ jetzt, E-Mail später/C7) ·
+  `default_locale` ('de') · Branding (Entscheid: in Xentral, Logo-Upload vorerst
+  im Portal): `accent_color`, `secondary_color`, `shop_name`,
+  `link_shop`, `link_imprint`, `link_terms`, `link_privacy` (alle nullable).
+  Feature-Flag (SOP kebab-case): `returns-portal-settings`.
 - **P2 — Settings-UI in Xentral** (`generate-business-entity-frontend`):
   natives Modul „Retourenportal" (Liste/Detail, Permissions).
 - **P3 — Portal-Anbindung:** Portal liest Settings per API (Cache + Fallback),

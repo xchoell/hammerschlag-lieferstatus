@@ -144,6 +144,7 @@ const de = {
   // Fehler
   'err.tokenInvalid': 'Dieser Retoure-Link ist ungültig oder abgelaufen. Bitte rufe den Lieferstatus erneut auf.',
   'err.notDelivered': 'Eine Retoure ist erst möglich, sobald deine Sendung zugestellt wurde. Bitte versuche es nach der Zustellung erneut.',
+  'err.returnsDisabled': 'Die Retoure-Anmeldung ist derzeit deaktiviert. Bitte kontaktiere den Kundenservice.',
   'err.noItems': 'Für diese Bestellung sind keine retournierbaren Artikel hinterlegt.',
   'err.selectOne': 'Bitte mindestens einen Artikel mit Menge und Grund auswählen.',
   'err.loadFailed': 'Die Artikel konnten nicht geladen werden. Bitte versuche es später erneut.',
@@ -240,6 +241,7 @@ const en = {
   'done.home': '← Back to start',
   'err.tokenInvalid': 'This return link is invalid or has expired. Please open the delivery status again.',
   'err.notDelivered': 'A return is only possible once your shipment has been delivered. Please try again after delivery.',
+  'err.returnsDisabled': 'Return registration is currently disabled. Please contact customer service.',
   'err.noItems': 'There are no returnable items for this order.',
   'err.selectOne': 'Please select at least one item with quantity and reason.',
   'err.loadFailed': 'The items could not be loaded. Please try again later.',

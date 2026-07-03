@@ -120,6 +120,93 @@ rate-limited.
   kein Label da, Hinweis „wird erstellt". Formular nur, wenn noch etwas
   retournierbar ist.
 
+## Settings aus Xentral (Option B) — Entity-API, B4-verifiziert
+
+Die Portal-Settings leben als Business Entity `ReturnsPortalSetting` in Xentral
+(eine Zeile pro Projekt) und werden vom Portal **per PAT über die Entity-API**
+gelesen — live verifiziert am 2026-07-03 auf dem Xentral-Worktree
+(`retourenportal-settings-xentral.test`, Branch `retourenportal-settings`).
+**Ein v3-Fallback-Endpoint ist NICHT nötig.**
+
+```
+GET /api/entity/returnsPortalSetting
+    ?filter[0][key]=project&filter[0][op]=equals&filter[0][value]=<projektId>
+    &filter[1][key]=isActive&filter[1][op]=equals&filter[1][value]=1
+Authorization: Bearer <PAT>
+Accept: application/json
+```
+
+Antwort: `{"data":[{ project:{id}, isActive, loginVariant, defaultLocale,
+returnDeadlineDays, deadlineBasis, shouldRequireDelivery, orderDateLimitHours,
+shouldLimitToSingleReturn, shouldRestrictToProjectOrders, shouldShowPrices,
+shouldSplitBillOfMaterials, shouldAutoCreateCreditNote, shippingMethod,
+serviceEmail, emailAccountId, accentColor, secondaryColor, shopName, shopLink,
+imprintLink, termsLink, privacyLink, id, uuid, … }], "meta": {…}}` —
+Einzelabruf via `GET /api/entity/returnsPortalSetting/{uuid}`.
+
+### Auth-Mechanik (Code + Live-Matrix)
+
+Middleware-Kette (`config/business-framework.php` im Xentral-Repo):
+`api` → `auth:sanctum` (= normale Xentral-PATs) → `businessFrameworkApiAccess`
+(Feature-Flag-Gate) → `PermissionOperationAuthorizer` (Scopes).
+
+| Fall | HTTP |
+|---|---|
+| ohne Token | 401 |
+| PAT, Flag `bf-entity-authorization` **aus** | **200** (jeder authentifizierte PAT darf alles) |
+| Flag an, PAT-User ist **Admin** | 200 — **Admin-Bypass, Token-Scopes werden ignoriert** |
+| Flag an, Nicht-Admin ohne User-Scope | 403 |
+| Flag an, User-Scope da, Token ohne Scope-Rows | 200 (leere Token-Scope-Liste = alles, was der User darf) |
+| Flag an, Token-Scope nur `…:mutate` | 403 auf GET |
+| Flag an, Token-Scope `entity:returnsPortalSetting:read` | 200 |
+| User per `user_project_access` auf fremdes Projekt beschränkt | 200, aber **leere Liste** (leises Row-Filtering) |
+| Feature-Flag `business-framework-api` **aus** | **404** — auch mit gültigem PAT |
+
+### Scopes & Betriebs-Voraussetzungen (pro Kundeninstanz)
+
+- Scope-Keys (Quelle `EntityScopeRegistry`, Prefix `entity:`):
+  `entity:returnsPortalSetting:read` / `:mutate` / `:delete`. Registrierung in
+  der `scopes`-Tabelle via `php artisan scopes:sync` (Gruppe „Configuration").
+  Das Portal braucht nur **`entity:returnsPortalSetting:read`**.
+- Feature-Flag **`business-framework-api`** muss an sein (LaunchDarkly), sonst
+  404 für die gesamte Entity-API.
+- Least-Privilege-PAT: **Nicht-Admin-Service-User** anlegen, User-Scope per
+  `user_permissions` granten, Token-Scope-Row in
+  `personal_access_token_permissions`. (Ein Admin-PAT funktioniert immer,
+  umgeht aber jede Scope-Beschränkung — nicht empfohlen.)
+- Ist `bf-entity-authorization` (noch) aus, reicht irgendein gültiger PAT.
+- Achtung Projektrechte: hat der PAT-User `user_project_access`-Zeilen, sieht
+  er nur Settings seiner Projekte — falsch gescopter User äußert sich als
+  „Settings nicht gefunden", nicht als Fehler.
+
+### Settings-Sync im Portal (B5, umgesetzt + E2E-verifiziert 2026-07-03)
+
+`src/xentral-settings.js` löst die effektiven Retouren-Settings **pro Projekt
+des Auftrags** auf (Projekt kommt als drittes Segment in den Order-Token):
+
+- **Quelle Xentral**: Entity-Zeile des Projekts → `active` (isActive),
+  `shippingMethodId` (shippingMethod.id), `onlyDelivered`
+  (shouldRequireDelivery), `showPrices` (shouldShowPrices); alle übrigen Felder
+  liegen in `raw` für die kommenden Gates (C1 ff.).
+- **Cache** pro Projekt (`RETURNS_SETTINGS_CACHE_TTL_MS`, Default 60 s) →
+  Änderungen in Xentral wirken ohne Neustart (verifiziert: isActive=0 in
+  Xentral → Portal zeigt nach TTL „deaktiviert", zurück auf 1 → Flow wieder da).
+- **Fallback-Kette bei Fehlern**: letzter bekannter Stand (stale, mit
+  TTL-Backoff gegen Hammering), sonst lokale `.env`-Werte. Ein API-Ausfall
+  bricht den Lieferstatus nicht (verifiziert: Entity-API 404 → `/status` 200,
+  `/retoure` liefert letzten Stand, Warnung im Log).
+- **Keine Zeile fürs Projekt** oder kein Projekt am Auftrag → lokale Werte
+  (Bootstrap-Verhalten). `isActive=false` → Retoure-Flow bewusst AUS
+  (eigene Fehlerseite, kein Token auf der Statusseite).
+- Portal-`/admin` → Retouren zeigt nur noch den Hinweis „wird in Xentral
+  gepflegt" + Direktlink auf die Settings-Seite; lokale Fallback-Werte leben
+  in der `.env` (RETURN_SHIPPING_METHOD_ID, RETURNS_ONLY_DELIVERED,
+  RETURNS_SHOW_PRICES).
+- **Split-Dev-Setup** (Aufträge = Cloud-Testinstanz, Entity = Worktree):
+  `RETURNS_SETTINGS_BASE_URL` + `RETURNS_SETTINGS_TOKEN` überschreiben die
+  Quelle nur für die Settings; leer = gleiche Instanz + PAT wie alles andere
+  (Prod-Normalfall).
+
 ## Bewusst noch offen (Backlog)
 
 - **Versandart-Regeln (Punkt 1)**: Regel-System im Admin (Kriterium Gewicht/Größe

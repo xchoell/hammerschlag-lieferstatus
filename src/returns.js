@@ -55,12 +55,14 @@ function readToken(kind, token, segmentCount) {
 }
 
 // Order-Token trägt den geprüften Zustell-Status mit (Delivered-Gate wird in
-// /retoure serverseitig erneut geprüft, nicht nur beim Rendern des Buttons).
-export const orderToken = (salesOrderId, delivered = false) =>
-  makeToken('order', [salesOrderId, delivered ? '1' : '0']);
+// /retoure serverseitig erneut geprüft, nicht nur beim Rendern des Buttons)
+// sowie das Projekt des Auftrags (Schlüssel für die Xentral-Settings, erspart
+// /retoure einen zusätzlichen Auftrags-Abruf vor dem Gate).
+export const orderToken = (salesOrderId, delivered = false, projectId = '') =>
+  makeToken('order', [salesOrderId, delivered ? '1' : '0', projectId || '']);
 export function verifyOrderToken(t) {
-  const seg = readToken('order', t, 2);
-  return seg ? { salesOrderId: seg[0], delivered: seg[1] === '1' } : null;
+  const seg = readToken('order', t, 3);
+  return seg ? { salesOrderId: seg[0], delivered: seg[1] === '1', projectId: seg[2] || null } : null;
 }
 export const labelToken = (returnId) => makeToken('label', [returnId]);
 export function verifyLabelToken(t) {
@@ -117,7 +119,9 @@ async function loadReturnsForOrder(salesOrderId) {
 
 // Retournierbare Positionen + Gründe + Retouren-Versandarten für einen Auftrag.
 // locale steuert die Sprache der Rücksendegründe (Fallback DE, dann alle).
-export async function loadReturnable(salesOrderId, locale = 'de') {
+// settings = effektive Retouren-Settings (aus Xentral bzw. lokaler Fallback,
+// s. xentral-settings.js); ohne Angabe greifen die lokalen config-Werte.
+export async function loadReturnable(salesOrderId, locale = 'de', settings = null) {
   const order = await getSalesOrderById(salesOrderId);
   if (!order) return null;
 
@@ -162,10 +166,11 @@ export async function loadReturnable(salesOrderId, locale = 'de') {
     designation: r.designation,
   }));
 
-  // Stufe A: feste Retouren-Versandart aus der Konfiguration (/admin) — der
-  // Endkunde wählt nicht mehr. selected=null, wenn (noch) keine konfiguriert ist
-  // oder die ID keiner supportReturns-Versandart mehr entspricht.
-  const configuredId = String(config.returns?.shippingMethodId || '');
+  // Stufe A: feste Retouren-Versandart — seit B5 aus den Xentral-Settings des
+  // Projekts (Fallback: lokale Config). Der Endkunde wählt nicht mehr.
+  // selected=null, wenn keine konfiguriert ist oder die ID keiner
+  // supportReturns-Versandart mehr entspricht.
+  const configuredId = String(settings?.shippingMethodId ?? config.returns?.shippingMethodId ?? '');
   const selected = configuredId
     ? shippingMethods.find((m) => String(m.id) === configuredId) || null
     : null;
@@ -177,7 +182,7 @@ export async function loadReturnable(salesOrderId, locale = 'de') {
     reasons,
     shippingMethod: selected ? { id: String(selected.id), designation: selected.designation } : null,
     existingReturns: orderReturns.existing,
-    showPrices: !!config.returns?.showPrices,
+    showPrices: settings ? !!settings.showPrices : !!config.returns?.showPrices,
   };
 }
 

@@ -298,6 +298,8 @@ async function buildPart({ order = null, fallbackNote = null, zip }) {
     // Nur echte Aufträge sind retournierbar (Lieferschein-Fallback hat keine
     // verwertbare salesOrderId für die V1-Retouren-Anlage).
     salesOrderId: order ? f.id(order) : null,
+    // Projekt des Auftrags — Schlüssel für die Retouren-Settings aus Xentral.
+    projectId: order ? f.projectId(order) || null : null,
     recipientName,
     deliveryAddress,
     addressIsDeviating,
@@ -331,6 +333,8 @@ function finalizeGroup(parts, groupNumber) {
     // Für die Retoure-Anmeldung: erster Teilauftrag mit echter salesOrderId.
     // MVP0 bietet Retoure auf diesen Auftrag an (Multi-Order -> TODO).
     primarySalesOrderId: parts.find((p) => p.salesOrderId)?.salesOrderId || null,
+    // Projekt des Retoure-Auftrags (für die projektbezogenen Xentral-Settings).
+    primaryProjectId: parts.find((p) => p.salesOrderId)?.projectId || null,
     // Zustell-Status des Retoure-Auftrags (fürs Delivered-Gate).
     primaryDelivered: (() => {
       const p = parts.find((x) => x.salesOrderId);
