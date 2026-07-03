@@ -20,7 +20,8 @@ import {
   returnDocuments,
   fetchReturnDocument,
 } from './returns.js';
-import { getReturnsSettings } from './xentral-settings.js';
+import { getReturnsSettings, getSettingsBySlug } from './xentral-settings.js';
+import { runWithPortal, currentPortal } from './portal-context.js';
 import {
   renderForm,
   renderResult,
@@ -65,8 +66,6 @@ app.use(
 // 32kb: das Retoure-Formular kann mehrere Positionen (Menge + Grund je Artikel)
 // posten. Weiterhin klein genug als Missbrauchsschutz; Writes sind rate-limited.
 app.use(express.urlencoded({ extended: false, limit: '32kb' }));
-// Kundensprache pro Request (?lang= > Cookie > Accept-Language > Default).
-app.use(localeMiddleware);
 
 // Rate-Limit nur auf den Lookup (Schutz gegen Enumeration der Nummern).
 const lookupLimiter = rateLimit({
@@ -82,9 +81,19 @@ const lookupLimiter = rateLimit({
 
 app.get('/healthz', (_req, res) => res.json({ ok: true, mock: config.useMock }));
 
-app.get('/', (_req, res) => res.send(renderForm()));
+// ── Kundenseiten (Startseite, Status, Retoure) ──────────────────────────────
+// Ein Router, zweimal gemountet: unpräfixt (Default-Verhalten, lokales
+// Branding) und unter /p/<slug> (Pro-Projekt-Frontend: Branding + Settings aus
+// der Xentral-Zeile des Projekts, s. portal-context.js).
+const customer = express.Router({ mergeParams: true });
+// Kundensprache pro Request (?lang= > Cookie > Accept-Language >
+// Projekt-Standardsprache > Default). Läuft NACH dem Slug-Resolver, damit die
+// Projekt-Standardsprache greift.
+customer.use(localeMiddleware);
 
-app.post('/status', lookupLimiter, async (req, res) => {
+customer.get('/', (_req, res) => res.send(renderForm()));
+
+customer.post('/status', lookupLimiter, async (req, res) => {
   const { query, zip } = req.body || {};
   if (!query || !zip) {
     return res.status(400).send(renderForm({ error: t('form.missingInput'), query }));
@@ -92,6 +101,15 @@ app.post('/status', lookupLimiter, async (req, res) => {
   try {
     const status = await lookupStatus(query, zip);
     if (!status) return res.status(404).send(renderNotFound());
+    // Projekt-Portal: Aufträge fremder Projekte sind hier nicht auffindbar
+    // (Setting "Nur Aufträge dieses Projekts", Default an).
+    const portal = currentPortal();
+    if (
+      portal?.settings.restrictToProject &&
+      String(status.primaryProjectId || '') !== String(portal.settings.projectId)
+    ) {
+      return res.status(404).send(renderNotFound());
+    }
     // Signiertes Retoure-Token: trägt den geprüften PLZ-Zweitfaktor in den
     // Retoure-Flow, ohne die PLZ erneut abzufragen. Nur für echte Aufträge.
     // Gates kommen seit B5 aus den Xentral-Settings des Projekts (Fallback
@@ -99,7 +117,7 @@ app.post('/status', lookupLimiter, async (req, res) => {
     // Zustell-Status und das Projekt wandern in den Token, damit /retoure die
     // Gates unabhängig erneut prüfen kann.
     if (status.primarySalesOrderId) {
-      const rs = await getReturnsSettings(status.primaryProjectId);
+      const rs = portal ? portal.settings : await getReturnsSettings(status.primaryProjectId);
       if (rs.active && (!rs.onlyDelivered || status.primaryDelivered)) {
         status.retoureToken = orderToken(
           status.primarySalesOrderId,
@@ -237,11 +255,27 @@ const retoureLimiter = rateLimit({
 
 
 
+// Effektive Retouren-Settings im Retoure-Flow: unter /p/<slug> die Zeile des
+// Portal-Projekts (inkl. Projekt-Gate gegen Fremd-Tokens), sonst wie bisher
+// die Zeile des Auftrags-Projekts.
+async function resolveRetoureSettings(verified) {
+  const portal = currentPortal();
+  if (!portal) return getReturnsSettings(verified.projectId);
+  if (
+    portal.settings.restrictToProject &&
+    String(verified.projectId || '') !== String(portal.settings.projectId)
+  ) {
+    return null; // Auftrag gehört nicht zu diesem Projekt-Portal
+  }
+  return portal.settings;
+}
+
 // Schritt 1: Artikelauswahl + Gründe + Retouren-Versandart anzeigen.
-app.get('/retoure', async (req, res) => {
+customer.get('/retoure', async (req, res) => {
   const verified = verifyOrderToken(req.query.t);
   if (!verified) return res.status(403).send(renderRetoureError(t('err.tokenInvalid')));
-  const settings = await getReturnsSettings(verified.projectId);
+  const settings = await resolveRetoureSettings(verified);
+  if (!settings) return res.status(404).send(renderNotFound());
   if (!settings.active) return res.status(403).send(renderRetoureError(t('err.returnsDisabled')));
   if (settings.onlyDelivered && !verified.delivered)
     return res.status(403).send(renderRetoureError(t('err.notDelivered')));
@@ -261,10 +295,11 @@ app.get('/retoure', async (req, res) => {
 });
 
 // Schritt 2: Retoure anlegen + freigeben, dann Label/Beleg verlinken.
-app.post('/retoure', retoureLimiter, async (req, res) => {
+customer.post('/retoure', retoureLimiter, async (req, res) => {
   const verified = verifyOrderToken(req.body?.t);
   if (!verified) return res.status(403).send(renderRetoureError(t('err.tokenInvalid')));
-  const settings = await getReturnsSettings(verified.projectId);
+  const settings = await resolveRetoureSettings(verified);
+  if (!settings) return res.status(404).send(renderNotFound());
   if (!settings.active) return res.status(403).send(renderRetoureError(t('err.returnsDisabled')));
   if (settings.onlyDelivered && !verified.delivered)
     return res.status(403).send(renderRetoureError(t('err.notDelivered')));
@@ -309,7 +344,7 @@ app.post('/retoure', retoureLimiter, async (req, res) => {
 });
 
 // Label/Beleg streamen (token-geschützt, kein direkter Zugriff ohne gültiges Token).
-app.get('/retoure/label', async (req, res) => {
+customer.get('/retoure/label', async (req, res) => {
   const returnId = verifyLabelToken(req.query.t);
   if (!returnId) return res.status(403).end();
   const documentId = String(req.query.doc || '').replace(/[^0-9]/g, '');
@@ -324,6 +359,27 @@ app.get('/retoure/label', async (req, res) => {
     return res.status(404).end();
   }
 });
+
+// Pro-Projekt-Frontend: /p/<slug>/… — Slug-Resolver lädt die Settings-Zeile
+// des Projekts aus Xentral (Cache in xentral-settings.js) und spannt den
+// Portal-Kontext auf; unbekannter/inaktiver Slug -> 404.
+app.use(
+  '/p/:slug',
+  async (req, res, next) => {
+    try {
+      const settings = await getSettingsBySlug(req.params.slug);
+      if (!settings || !settings.active) return res.status(404).send(renderNotFound());
+      return runWithPortal({ slug: req.params.slug, settings }, next);
+    } catch (err) {
+      console.error('[portal] Slug-Auflösung fehlgeschlagen:', err);
+      return res.status(404).send(renderNotFound());
+    }
+  },
+  customer,
+);
+
+// Default-Portal ohne Präfix (lokales Branding, Verhalten wie bisher).
+app.use('/', customer);
 
 app.use((_req, res) => res.status(404).send(renderNotFound()));
 

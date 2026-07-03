@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { config } from './config.js';
+import { currentPortal } from './portal-context.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // i18n für alle kundensichtbaren Texte (Admin bleibt bewusst Deutsch).
@@ -29,6 +30,11 @@ export function localeMiddleware(req, res, next) {
   if (!locale) {
     const al = String(req.headers['accept-language'] || '').toLowerCase();
     locale = SUPPORTED.find((l) => al.startsWith(l)) || null;
+  }
+  // Projekt-Portal (/p/<slug>): dessen Standardsprache schlägt die globale.
+  if (!locale) {
+    const projectDefault = String(currentPortal()?.settings?.raw?.defaultLocale || '').toLowerCase();
+    if (SUPPORTED.includes(projectDefault)) locale = projectDefault;
   }
   if (!locale) locale = SUPPORTED.includes(config.defaultLocale) ? config.defaultLocale : 'de';
   store.run({ locale }, next);

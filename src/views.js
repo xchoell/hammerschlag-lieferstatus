@@ -2,6 +2,7 @@ import { config } from './config.js';
 import { t, currentLocale } from './i18n.js';
 import { STAGES, CANCELLED_STAGES } from './lookup.js';
 import { logoStatus } from './logo.js';
+import { portalPath, currentBrand } from './portal-context.js';
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -36,7 +37,9 @@ function carrierSummary(shipments) {
   return ' · ' + parts.join(', ') + more;
 }
 
-const brand = config.brand;
+// Branding pro Request: unter /p/<slug> überlagern die Xentral-Settings des
+// Projekts die lokalen config.brand-Werte (s. portal-context.js).
+const brand = new Proxy({}, { get: (_t, prop) => currentBrand()[prop] });
 
 function layout(title, body, opts = {}) {
   return `<!doctype html>
@@ -199,7 +202,7 @@ export function renderForm({ error, query } = {}) {
     `
     <h1>${esc(t('form.heading'))}</h1>
     ${error ? `<div class="err">${esc(error)}</div>` : ''}
-    <form method="post" action="/status" autocomplete="off">
+    <form method="post" action="${portalPath('/status')}" autocomplete="off">
       <div class="label-row">
         <label for="query">${esc(t('form.number'))}</label>
         <span class="info" tabindex="0" role="button" aria-label="Welche Nummern sind erlaubt?">
@@ -229,7 +232,7 @@ export function renderNotFound() {
     `
     <h1>${esc(t('notFound.heading'))}</h1>
     <p class="sub">${esc(t('notFound.text'))}</p>
-    <a class="back" href="/">${esc(t('notFound.back'))}</a>`,
+    <a class="back" href="${portalPath('/')}">${esc(t('notFound.back'))}</a>`,
   );
 }
 
@@ -257,7 +260,7 @@ function addressHtml(a, { deviating = false } = {}) {
 // serverseitig geprüftem PLZ-Zweitfaktor). Ohne Token kein Button.
 function retoureButtonHtml(token) {
   if (!token) return '';
-  return `<a class="btn-outline" href="/retoure?t=${encodeURIComponent(token)}">${esc(t('status.retoureButton'))}</a>`;
+  return `<a class="btn-outline" href="${portalPath('/retoure')}?t=${encodeURIComponent(token)}">${esc(t('status.retoureButton'))}</a>`;
 }
 
 // Verlauf eines normalen Auftrags (4 Stufen).
@@ -358,7 +361,7 @@ function renderSingle(result, s) {
     <p class="sub">${esc(t('status.order', { n: s.orderNumber }))}</p>
     ${partStatusBlock(s)}
     ${s.cancelled ? '' : retoureButtonHtml(result.retoureToken)}
-    <a class="back" href="/">${esc(t('status.otherOrder'))}</a>`,
+    <a class="back" href="${portalPath('/')}">${esc(t('status.otherOrder'))}</a>`,
   );
 }
 
@@ -398,7 +401,7 @@ function renderGroup(result, parts) {
     <div class="group-summary">${esc(summary)}</div>
     ${partsHtml}
     ${retoureButtonHtml(result.retoureToken)}
-    <a class="back" href="/">${esc(t('status.otherOrder'))}</a>`,
+    <a class="back" href="${portalPath('/')}">${esc(t('status.otherOrder'))}</a>`,
   );
 }
 
@@ -468,7 +471,7 @@ export function renderRetoure(data, token, prefill = {}) {
           ? er.documents
               .map(
                 (d) =>
-                  `<a class="track" href="/retoure/label?t=${encodeURIComponent(er.labelToken)}&doc=${encodeURIComponent(d.id)}" target="_blank" rel="noopener">${esc(docLabel(d))} ↗</a>`,
+                  `<a class="track" href="${portalPath('/retoure/label')}?t=${encodeURIComponent(er.labelToken)}&doc=${encodeURIComponent(d.id)}" target="_blank" rel="noopener">${esc(docLabel(d))} ↗</a>`,
               )
               .join('')
           : `<div class="eta"><small>${esc(t('retoure.labelPendingShort'))}</small>${esc(t('retoure.labelPending'))}</div>`;
@@ -486,7 +489,7 @@ export function renderRetoure(data, token, prefill = {}) {
   const note = `<p class="sub">${esc(!hasReturnable ? t('retoure.allReturned') : t('retoure.notPossible'))}</p>`;
   const formOrNote = canReturn
     ? `<p class="sub">${existing.length ? esc(t('retoure.chooseMore')) : ''}${esc(t('retoure.chooseIntro'))}</p>
-    <form method="post" action="/retoure">
+    <form method="post" action="${portalPath('/retoure')}">
       <input type="hidden" name="t" value="${esc(token)}" />
       ${itemsHtml}
       ${shippingInfo}
@@ -501,7 +504,7 @@ export function renderRetoure(data, token, prefill = {}) {
     <p class="sub">${esc(t('status.order', { n: data.orderNumber }))}</p>
     ${existingBlock}
     ${formOrNote}
-    <a class="back" href="/">${esc(t('retoure.back'))}</a>`,
+    <a class="back" href="${portalPath('/')}">${esc(t('retoure.back'))}</a>`,
   );
 }
 
@@ -534,7 +537,7 @@ export function renderRetoureConfirm(data, selections, token) {
     <p class="sub">${esc(t('confirm.sub', { n: data.orderNumber }))}</p>
     ${rows}
     ${data.shippingMethod ? `<div class="eta"><small>${esc(t('retoure.shipWith'))}</small><b>${esc(data.shippingMethod.designation)}</b></div>` : ''}
-    <form method="post" action="/retoure">
+    <form method="post" action="${portalPath('/retoure')}">
       <input type="hidden" name="t" value="${esc(token)}" />
       <input type="hidden" name="confirm" value="1" />
       ${hidden}
@@ -549,7 +552,7 @@ export function renderRetoureDone({ orderNumber, returnId, docs = [], token }) {
   const links = docs
     .map(
       (d) =>
-        `<a class="track" href="/retoure/label?t=${encodeURIComponent(token)}&doc=${encodeURIComponent(d.id)}" target="_blank" rel="noopener">${esc(docLabel(d))} ↗</a>`,
+        `<a class="track" href="${portalPath('/retoure/label')}?t=${encodeURIComponent(token)}&doc=${encodeURIComponent(d.id)}" target="_blank" rel="noopener">${esc(docLabel(d))} ↗</a>`,
     )
     .join('');
   const noDocs =
@@ -564,7 +567,7 @@ export function renderRetoureDone({ orderNumber, returnId, docs = [], token }) {
     <div class="ok">${esc(t('done.text'))}</div>
     ${links}
     ${noDocs}
-    <a class="back" href="/">${esc(t('done.home'))}</a>`,
+    <a class="back" href="${portalPath('/')}">${esc(t('done.home'))}</a>`,
   );
 }
 
@@ -583,7 +586,7 @@ export function renderRetoureError(message) {
     `
     <h1>${esc(t('title.retoureError'))}</h1>
     <div class="err">${esc(message)}</div>
-    <a class="back" href="/">${esc(t('done.home'))}</a>`,
+    <a class="back" href="${portalPath('/')}">${esc(t('done.home'))}</a>`,
   );
 }
 

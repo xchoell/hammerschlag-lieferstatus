@@ -100,6 +100,12 @@ editable in the native UI. Context/parity research: PLAN.md in the portal repo.
    getestet), „Nur zugestellte Bestellungen" im Formular ausgeblendet (Feld
    bleibt in der API), Login-Variante „Nummer + Kundennummer"
    (`customerNumber`) ergänzt — alles im Browser verifiziert; 24/24 Tests
+6. `08d9c9847a7` — `urlSlug`-Feld fürs Pro-Projekt-Frontend: Spalte `url_slug`
+   (Index, KEIN DB-Unique — nullable Strings persistiert das Framework als
+   `''`; Eindeutigkeit erzwingt der Validator), Auto-Vorbelegung aus dem
+   Projektnamen via `DeriveProjectCalculator` (Kollision → `-<projektId>`),
+   Format-Regex + Uniqueness-Validator, i18n de/en/nl, Review-CSV,
+   Default-Spalte in der Liste; 28/28 Tests
 
 > Optional vor dem Push: Commits 3+4 in 1+2 squashen (History-Kosmetik);
 > der Diff ist identisch.

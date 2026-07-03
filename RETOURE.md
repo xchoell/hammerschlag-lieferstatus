@@ -207,6 +207,31 @@ des Auftrags** auf (Projekt kommt als drittes Segment in den Order-Token):
   Quelle nur für die Settings; leer = gleiche Instanz + PAT wie alles andere
   (Prod-Normalfall).
 
+### Pro-Projekt-Frontend `/p/<slug>/…` (umgesetzt + E2E-verifiziert 2026-07-03)
+
+Jedes Projekt bekommt sein eigenes Portal-Frontend unter einem Pfad-Präfix —
+Startseite, Lieferstatus UND Retoure laufen komplett gebrandet unter
+`…/p/<slug>/`; das unpräfixte Portal bleibt als Default (lokales Branding).
+
+- **Slug** = neues Feld `urlSlug` an der Xentral-Entity (Einstellungen →
+  Retourenportal), beim Anlegen automatisch aus dem Projektnamen vorbelegt
+  (`DeriveProjectCalculator`; Namenskollision → `-<projektId>`-Suffix, live
+  bewiesen: zwei Projekte „Standard" → `standard` + `standard-1`). Eindeutigkeit
+  + Format (`[a-z0-9-]`) erzwingt der Backend-Validator.
+- **Auflösung**: `getSettingsBySlug` (xentral-settings.js) holt die Zeile per
+  `filter[urlSlug]`, Cache + Stale-on-error wie beim Projekt-Lookup; auch
+  „nicht gefunden" wird gecacht (Slug-Scans). Unbekannter/inaktiver Slug → 404.
+- **Kontext**: `portal-context.js` (AsyncLocalStorage) trägt Slug + Settings
+  durch den Request. `currentBrand()` überlagert config.brand feldweise mit
+  shopName/serviceEmail/accentColor/secondaryColor/Links der Zeile;
+  `portalPath()` präfixiert alle internen Links/Formulare; die
+  Projekt-`defaultLocale` hängt in der i18n-Fallback-Kette.
+- **Projekt-Gate**: „Nur Aufträge dieses Projekts" (shouldRestrictToProjectOrders,
+  Default an) macht Aufträge fremder Projekte unter dem Portal unauffindbar
+  (404 bei Lookup UND bei fremden Retoure-Tokens).
+- Logo bleibt vorerst global (B0: Logo-Upload lebt im Portal), Login-Variante
+  `customerNumber` ist bisher nur Setting (Portal-Login = C7).
+
 ## Bewusst noch offen (Backlog)
 
 - **Versandart-Regeln (Punkt 1)**: Regel-System im Admin (Kriterium Gewicht/Größe

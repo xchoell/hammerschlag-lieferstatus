@@ -41,18 +41,23 @@ function mapRemote(row) {
   return {
     source: 'xentral',
     active: row.isActive === true,
+    projectId: row.project?.id ? String(row.project.id) : '',
+    urlSlug: row.urlSlug || '',
     shippingMethodId: row.shippingMethod?.id ? String(row.shippingMethod.id) : '',
     onlyDelivered: row.shouldRequireDelivery !== false,
     showPrices: row.shouldShowPrices === true,
+    // Projekt-Gate fürs Pro-Projekt-Frontend: Aufträge fremder Projekte sind
+    // unter diesem Portal nicht auffindbar (Default an).
+    restrictToProject: row.shouldRestrictToProjectOrders !== false,
     raw: row,
   };
 }
 
-async function fetchRemote(projectId) {
+async function fetchRemote(filterKey, filterValue) {
   const url = new URL(apiBase() + '/api/entity/returnsPortalSetting');
-  url.searchParams.set('filter[0][key]', 'project');
+  url.searchParams.set('filter[0][key]', filterKey);
   url.searchParams.set('filter[0][op]', 'equals');
-  url.searchParams.set('filter[0][value]', String(projectId));
+  url.searchParams.set('filter[0][value]', String(filterValue));
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${apiToken()}`, Accept: 'application/json' },
   });
@@ -79,7 +84,7 @@ export async function getReturnsSettings(projectId) {
   if (hit && Date.now() - hit.at < config.returnsSettingsApi.cacheTtlMs) return hit.value;
 
   try {
-    const row = await fetchRemote(key);
+    const row = await fetchRemote('project', key);
     const value = row ? mapRemote(row) : localSettings();
     cache.set(key, { at: Date.now(), value });
     return value;
@@ -91,6 +96,37 @@ export async function getReturnsSettings(projectId) {
     // Fehler-Backoff: Stale-Eintrag re-stempeln, damit erst nach Ablauf der TTL
     // erneut gegen die API gelaufen wird (kein Hammering bei Dauerausfall).
     const value = hit ? hit.value : localSettings();
+    cache.set(key, { at: Date.now(), value });
+    return value;
+  }
+}
+
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+// Settings-Zeile zum Portal-Slug (/p/<slug>/…). null = kein solches Portal
+// (-> 404). Anders als getReturnsSettings gibt es hier KEINEN lokalen
+// Fallback — ein Slug existiert nur remote; bei API-Fehlern hält der
+// Stale-Cache laufende Portale am Leben.
+export async function getSettingsBySlug(slug) {
+  if (config.useMock || !config.returnsSettingsApi.enabled || !apiBase() || !apiToken()) return null;
+  if (!slug || !SLUG_RE.test(slug) || slug.length > 64) return null;
+
+  const key = `slug:${slug}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < config.returnsSettingsApi.cacheTtlMs) return hit.value;
+
+  try {
+    const row = await fetchRemote('urlSlug', slug);
+    // Auch "nicht gefunden" cachen — schützt vor Slug-Scans.
+    const value = row ? mapRemote(row) : null;
+    cache.set(key, { at: Date.now(), value });
+    return value;
+  } catch (err) {
+    console.warn(
+      `[settings-sync] Portal-Settings für Slug "${slug}" nicht ladbar (${err.status || err.message}) – ` +
+        (hit ? 'nutze letzten bekannten Stand.' : 'Portal nicht erreichbar.'),
+    );
+    const value = hit ? hit.value : null;
     cache.set(key, { at: Date.now(), value });
     return value;
   }
