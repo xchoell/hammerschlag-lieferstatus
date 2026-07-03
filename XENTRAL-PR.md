@@ -91,8 +91,10 @@ editable in the native UI. Context/parity research: PLAN.md in the portal repo.
 2. `181a391a12a` — Settings-UI (Frontend-Lib, SettingItemQuery, i18n)
 3. `611a6b5de21` — Cleanup: versehentlich committete mPDF-Font-Caches entfernt
    (kumulativer PR-Diff für `userdata/` ist leer)
-4. `587a7eecbed` — PR-Politur: mago format, PHPStan-Fix (Validator-Annotation),
-   SOP-Feature-Flag `returns-portal-settings`
+4. `26f63257dd9` — PR-Politur: mago format, PHPStan-Fix (Validator-Annotation),
+   SOP-Feature-Flag `returns-portal-settings`, `renderProperty: 'name'` für die
+   Referenzen project + shippingMethod (Liste zeigt Namen statt IDs; im Browser
+   verifiziert: „Standard" / „DHL Retoure")
 
 > Optional vor dem Push: Commits 3+4 in 1+2 squashen (History-Kosmetik);
 > der Diff ist identisch.
