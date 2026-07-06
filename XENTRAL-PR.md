@@ -100,6 +100,17 @@ editable in the native UI. Context/parity research: PLAN.md in the portal repo.
    getestet), „Nur zugestellte Bestellungen" im Formular ausgeblendet (Feld
    bleibt in der API), Login-Variante „Nummer + Kundennummer"
    (`customerNumber`) ergänzt — alles im Browser verifiziert; 24/24 Tests
+7. `5a98232d7a7` — Retourenbedingungen (RETURN-212) als Kind-Collection
+   `lineItems` der Settings-Entity: Tabelle `returns_portal_conditions`
+   (FK cascade), Child-Node `ReturnsPortalCondition` (Kriterien Gewicht
+   min/max als BigDecimal, Artikelnummer, Hersteller, Land ISO2,
+   B2B-Filter-Enum any|b2b|b2c; Effekt-Enum excludeProduct|blockReturn|
+   useShippingMethod; Kundenhinweis), hasMany eager → Regeln kommen im
+   Settings-GET mit; Property heißt `lineItems`, damit die Framework-
+   Line-Items-Sektion die Tabelle rendert (Container mit Details-Render-Prop
+   + kuratierten Spalten); i18n de/en/nl, 2 Enum-CSVs + Review-CSV,
+   4 neue Integrationstests (Create/Embed/Invalid/Delete via actionIndicator);
+   32/32 gesamt
 6. `08d9c9847a7` — `urlSlug`-Feld fürs Pro-Projekt-Frontend: Spalte `url_slug`
    (Index, KEIN DB-Unique — nullable Strings persistiert das Framework als
    `''`; Eindeutigkeit erzwingt der Validator), Auto-Vorbelegung aus dem
