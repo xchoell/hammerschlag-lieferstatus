@@ -162,6 +162,12 @@ export async function getSalesOrderById(id) {
   return json.data || json || null;
 }
 
+// Einzelnes Produkt (V1) — für die Bedingungen-Engine (Gewicht/Hersteller).
+export async function getProductById(id) {
+  const json = await xentralRequest(`/api/v1/products/${id}`);
+  return json.data || json || null;
+}
+
 // Retoure anlegen. Scope: return:create (Schreibrecht!)
 // Antwort: 201 ohne Body -> ID aus dem Location-Header (/api/v1/returns/{id}).
 export async function createReturn(payload) {

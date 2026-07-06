@@ -279,6 +279,46 @@ E2E auf `/p/standard-1` (Auftrag 200005): Split aus → nur „Nordvik"-Parent;
 Split an → „BOM-Kind A/B" einzeln retournierbar; Retoure auf Kind B → Mail
 „Hallo Rosel Philipp, … 1× BOM-Kind B … DHL Retoure", nach Queue-Flush `sent`.
 
+### C2: Retourenbedingungen-Engine (umgesetzt + E2E-verifiziert 2026-07-04)
+
+Kombinierbare Regeln (RETURN-212) leben als **Kind-Collection der
+Settings-Entity** (API-Feld `lineItems` — Framework-Konvention für die
+Line-Items-Sektion, UI-Label „Retourenbedingungen") und kommen mit demselben
+Fetch wie die Settings ins Portal (eager). Auswertung serverseitig in
+`src/conditions.js`:
+
+- **Kriterien** einer Regel UND-verknüpft: Gewicht ab/bis (kg,
+  `product.measurements.weight`), Artikelnummer (exakt oder Präfix `XY-*`),
+  Hersteller, Lieferland (ISO2), Kundenart (alle/B2B/B2C — B2B = Auftrags-
+  Adresstyp `firma`, v1 liefert `billingAddress.type = "company"`).
+- **Effekte** (Regeln nach Priorität): `excludeProduct` (Artikel ausgegraut
+  mit Kundenhinweis, `remaining=0` ⇒ Server-Clamp greift automatisch),
+  `blockReturn` (Hinweis statt Formular + POST 403; C1-Gates haben Vorrang),
+  `useShippingMethod` (überschreibt die Retouren-Versandart, erste Regel
+  gewinnt; Ziel-Versandart braucht `supportReturns`).
+- Produkt-Details (Gewicht/Hersteller) werden nur nachgeladen, wenn Regeln sie
+  brauchen (In-Prozess-Cache 10 min). Unbekanntes Gewicht (0) matcht keine
+  Gewichtsregel — fail-open.
+- E2E auf `/p/standard-1`: Gewichtsregel 45 kg ≥ 30 → „Rücksendung mit
+  Spedition"; `BK-*`-Regel → Buch ausgeschlossen mit Custom-Note; B2B-Regel →
+  Block mit Custom-Note + POST 403.
+
+### C3: Auto-Gutschrift — API-Lücke dokumentiert (Recherche 2026-07-04)
+
+**Es gibt KEINEN API-Weg, aus einer Retoure eine Gutschrift zu erzeugen** —
+weder v3 (creditNotes hat nur release/send/logActivity/writeProtection;
+returnOrders keine Gutschrift-Action) noch v1 (nur `ApiGutschriftFreigabe`).
+Der interne Handler existiert fertig: `Retoure::createCreditNote(int $id,
+bool $isCancellation): int` (www/pages/retoure.php:1349–1516; nutzt
+`CreateGutschrift` + `GutschriftNeuberechnen`, kopiert `retoure_position` →
+`gutschrift_position`, verlinkt `retoure.gutschrift_id`, schließt die Retoure
+ab). **Vorschlag fürs API-Team** (analog generateShippingLabel):
+`POST /api/v3/creditNotes/actions/createFromReturnOrder` mit
+`{returnOrderId, isCancellation?}`, Scope `creditNote:create` — Wrapper-Action
+um den bestehenden Handler. → Gehört als zweiter API-Improvement in D1.
+Das Setting `shouldAutoCreateCreditNote` bleibt bis dahin ohne Wirkung im
+Portal (bewusst: kein DIY-Nachbau der Gutschrift-Logik).
+
 ## Bewusst noch offen (Backlog)
 
 - **Versandart-Regeln (Punkt 1)**: Regel-System im Admin (Kriterium Gewicht/Größe

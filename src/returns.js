@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { config } from './config.js';
+import { activeConditions, rulesNeedProductDetails, productDetails, applyConditions } from './conditions.js';
 import {
   listReturnReasons,
   listReturnShippingMethods,
@@ -209,6 +210,7 @@ export async function loadReturnable(salesOrderId, locale = 'de', settings = nul
     .filter((p) => (splitBom ? !isBomParent(p) : !p.parent) && Number(p.quantity) > 0)
     .map((p) => ({
       id: String(p.id),
+      productId: pick(p, ['product.id']) || null,
       name: pick(p, ['product.name', 'name', 'product.number']) || 'Artikel',
       number: pick(p, ['product.number', 'articleNumber']) || '',
       quantity: Number(p.quantity) || 0,
@@ -243,11 +245,40 @@ export async function loadReturnable(salesOrderId, locale = 'de', settings = nul
     designation: r.designation,
   }));
 
+  // C2 Bedingungen: Regeln der Settings-Zeile auswerten. Produkt-Details
+  // (Gewicht/Hersteller) nur nachladen, wenn Regeln sie brauchen.
+  const rules = activeConditions(settings);
+  if (rules.length && rulesNeedProductDetails(rules)) {
+    await Promise.all(
+      items.map(async (it) => {
+        const detail = await productDetails(it.productId);
+        it.weightKg = detail?.weightKg ?? null;
+        it.manufacturer = detail?.manufacturer ?? '';
+      }),
+    );
+  }
+  const orderCtx = {
+    country: pick(order, ['delivery.shippingAddress.country', 'financials.billingAddress.country']) || '',
+    // Geschäftskunde: v1 mappt den Xentral-Adresstyp 'firma' auf 'company'
+    // (billingAddress.type, live verifiziert).
+    isB2b: ['company', 'firma'].includes(
+      String(pick(order, ['financials.billingAddress.type', 'financials.billingAddress.salutation']) || '').toLowerCase(),
+    ),
+  };
+  const conditionResult = rules.length ? applyConditions(rules, orderCtx, items) : null;
+  // Ausgeschlossene Artikel: remaining=0 macht den Server-Clamp im POST
+  // automatisch wirksam; die View zeigt den Regel-Hinweis.
+  for (const it of items) {
+    if (it.excluded) it.remaining = 0;
+  }
+
   // Stufe A: feste Retouren-Versandart — seit B5 aus den Xentral-Settings des
-  // Projekts (Fallback: lokale Config). Der Endkunde wählt nicht mehr.
-  // selected=null, wenn keine konfiguriert ist oder die ID keiner
-  // supportReturns-Versandart mehr entspricht.
-  const configuredId = String(settings?.shippingMethodId ?? config.returns?.shippingMethodId ?? '');
+  // Projekts (Fallback: lokale Config); eine useShippingMethod-Regel (C2)
+  // überschreibt sie. selected=null, wenn keine konfiguriert ist oder die ID
+  // keiner supportReturns-Versandart mehr entspricht.
+  const configuredId = String(
+    conditionResult?.shippingMethodOverrideId ?? settings?.shippingMethodId ?? config.returns?.shippingMethodId ?? '',
+  );
   const selected = configuredId
     ? shippingMethods.find((m) => String(m.id) === configuredId) || null
     : null;
@@ -262,6 +293,11 @@ export async function loadReturnable(salesOrderId, locale = 'de', settings = nul
     },
     settings,
   );
+  // C2 blockReturn: greift nach den C1-Gates (deren Hinweis ist spezifischer).
+  if (!window.blocked && conditionResult?.blocked) {
+    window.blocked = 'condition';
+    window.note = conditionResult.blockedNote || '';
+  }
 
   return {
     salesOrderId: String(salesOrderId),

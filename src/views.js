@@ -422,6 +422,14 @@ export function renderRetoure(data, token, prefill = {}) {
   const itemsHtml = data.items
     .map((it) => {
       const head = `<div><b>${esc(it.name)}</b>${it.number ? ` <span style="color:#6b7280;font-size:12px;">· ${esc(it.number)}</span>` : ''}${priceHtml(it, data.showPrices)}</div>`;
+      // Durch eine Retourenbedingung ausgeschlossen (C2) -> ausgegraut + Hinweis.
+      if (it.excluded) {
+        return `
+    <div class="part" style="padding:12px 14px;opacity:.5;">
+      ${head}
+      <div style="color:#6b7280;font-size:12px;margin-top:4px;">${esc(it.excludedNote || t('retoure.itemExcluded'))}</div>
+    </div>`;
+      }
       // Vollständig retourniert -> ausgegraut, keine Eingabefelder.
       if (it.remaining <= 0) {
         return `
@@ -490,10 +498,12 @@ export function renderRetoure(data, token, prefill = {}) {
   const hasReturnable = data.items.some((i) => i.remaining > 0);
   const canReturn = hasReturnable && !!data.shippingMethod && !blocked;
   const noteText = blocked
-    ? t(
-        { deadline: 'retoure.windowExpired', orderAge: 'retoure.tooFresh', multiReturn: 'retoure.singleLimit' }[blocked],
-        { h: data.window?.limitHours || 0 },
-      )
+    ? blocked === 'condition'
+      ? data.window?.note || t('retoure.conditionBlocked')
+      : t(
+          { deadline: 'retoure.windowExpired', orderAge: 'retoure.tooFresh', multiReturn: 'retoure.singleLimit' }[blocked],
+          { h: data.window?.limitHours || 0 },
+        )
     : !hasReturnable
       ? t('retoure.allReturned')
       : t('retoure.notPossible');

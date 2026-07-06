@@ -310,13 +310,19 @@ customer.post('/retoure', retoureLimiter, async (req, res) => {
   const salesOrderId = verified.salesOrderId;
   try {
     const data = await loadReturnable(salesOrderId, currentLocale(), settings); // erneut laden -> Mengen serverseitig validieren
-    // C1-Zeitfenster: hartes Server-Gate — Anlegen nur im offenen Fenster
-    // (GET rendert bei blocked bereits Hinweis statt Formular).
+    // C1/C2-Zeitfenster + Bedingungen: hartes Server-Gate — Anlegen nur im
+    // offenen Fenster (GET rendert bei blocked bereits Hinweis statt Formular).
     if (data?.window?.blocked) {
-      const key = { deadline: 'retoure.windowExpired', orderAge: 'retoure.tooFresh', multiReturn: 'retoure.singleLimit' }[
-        data.window.blocked
-      ];
-      return res.status(403).send(renderRetoureError(t(key, { h: settings.raw?.orderDateLimitHours || 0 })));
+      const message =
+        data.window.blocked === 'condition'
+          ? data.window.note || t('retoure.conditionBlocked')
+          : t(
+              { deadline: 'retoure.windowExpired', orderAge: 'retoure.tooFresh', multiReturn: 'retoure.singleLimit' }[
+                data.window.blocked
+              ],
+              { h: settings.raw?.orderDateLimitHours || 0 },
+            );
+      return res.status(403).send(renderRetoureError(message));
     }
     // Auswahl = für die Position wurde ein Grund gewählt (kein JS nötig).
     // Menge gegen die bestellte/gelieferte Menge clampen (keine Over-Returns).
