@@ -1,63 +1,113 @@
 # Retourenportal — Zielbild & Umsetzungsplan
 
-Stand 2026-07-02. Quellen: Xentral-Handbuch (help.xentral.com 9726301921692 u. a.),
+Stand **2026-07-06**. Quellen: Xentral-Handbuch (help.xentral.com 9726301921692 u. a.),
 Jira-Projekt `RETURN` (54 offene Issues), Zendesk-Auswertung (100 jüngste von 1.255
 Treffern zu „Retourenportal", Feb–Jul 2026), Code-Analyse Xentral-Monolith
-(Worktree `retourenportal-settings-xentral`).
+(Worktree `retourenportal-settings-xentral`, Branch `SUP-0-retourenportal-settings`).
+Technischer Detailstand je Feature: `RETOURE.md`. Einstieg für Neue: `ONBOARDING.md`.
+
+---
+
+## 0. Stand der Umsetzung (Kurzfassung, 2026-07-06)
+
+**Fertig und E2E-verifiziert:** Blöcke A (Portal-Härtung) + B (Settings-Entity
+`returnsPortalSetting` in Xentral inkl. nativer Settings-UI und Portal-Sync)
+komplett · Pro-Projekt-Frontend `/p/<slug>` · C1 Frist-/Zeitfenster-Gates ·
+C2 Retourenbedingungen-Engine · C4 Bestätigungsmail · C6 Stücklisten-Split ·
+C7 Login-Varianten (PLZ/E-Mail/Kundennummer). Xentral-Branch ist gepusht
+(`SUP-0-retourenportal-settings`), PR-Text liegt in `XENTRAL-PR.md`.
+
+**P0-Label-Blocker GELÖST:** Das API-Team hat mit **SUP-87**
+(`sup-87-return-shipping-label-api`) unsere designte Route
+`POST /api/v3/returnOrders/{id}/actions/generateShippingLabel` gebaut —
+am 2026-07-06 lokal end-to-end bewiesen (echtes DHL-Sandbox-Label-PDF bis in
+die Portal-UI, Response `{fileId, trackingNumber, trackingLink}` passt 1:1 auf
+unseren bestehenden Download-Pfad). Noch nicht in main released.
+
+**Übrig für volle Parität:** siehe §1a — im Kern: Auto-Gutschrift (API-Lücke →
+D1), mehrere Rücksendeadressen (C5), Carrier-Ausbau über DHL hinaus
+(SUP-87-Follow-ups), Portal-Autoaufruf der Label-Route nach Release,
+konfigurierbare Mail-/Infotexte, Logo pro Projekt, weitere Sprachen.
 
 ---
 
 ## 1. Feature-Parität mit dem alten Retourenportal (Mindestumfang)
 
-Legende: ✅ = im neuen Portal (MVP0) vorhanden · 🔶 = teilweise · ❌ = fehlt noch
+Legende: ✅ = im neuen Portal vorhanden (E2E-verifiziert) · 🔶 = teilweise · ❌ = fehlt noch
 
 ### Kundensicht (Endkunden-Flow)
 | Feature (altes Portal) | Status neu | Anmerkung |
 |---|---|---|
-| Login B2C: E-Mail + Shop-Bestellnummer | 🔶 | Wir: Nummer (4 Varianten) + PLZ. Paritäts-Entscheid nötig: E-Mail-Variante ergänzen? |
-| Login B2B: Kundennr + Auftragsnr | 🔶 | dito |
-| Artikel wählen, Menge, Grund je Position | ✅ | Gründe direkt aus Xentral (altes Portal: eigener, UNsynchroner Katalog → RETURN-168) |
-| Zusammenfassung + bestätigen | 🔶 | Wir legen direkt an; Bestätigungs-Zwischenschritt fehlt |
-| Label + Retourenbeleg herunterladen | ✅ | Abruf bewiesen; **Erzeugung = P0-Blocker** (s. Hürden) |
-| Weitere Retoure direkt starten | ✅ | Statusseite → erneuter Flow |
-| Preise anzeigen (Option) | ❌ | klein |
-| Stücklisten-Bestandteile einzeln retournieren (Option) | ❌ | Backlog (BOM) |
+| Login B2C: E-Mail + Shop-Bestellnummer | ✅ | C7: Login-Variante `email` pro Portal wählbar; Nummer deckt Auftrags-/Bestell-/Shop-/Lieferscheinnummer ab |
+| Login B2B: Kundennr + Auftragsnr | ✅ | C7: Login-Variante `customerNumber` |
+| Artikel wählen, Menge, Grund je Position | ✅ | Gründe live aus Xentral (altes Portal: eigener, UNsynchroner Katalog → RETURN-168) |
+| Zusammenfassung + bestätigen | ✅ | A4: Bestätigungs-Zwischenschritt mit „Ändern"-Rücksprung |
+| Label + Retourenbeleg herunterladen | ✅ | Abruf + Erzeugung bewiesen (Erzeugung via SUP-87, s. §4 P0 — Release ausstehend) |
+| Weitere Retoure direkt starten | ✅ | Statusseite → erneuter Flow; Restmengen-Logik |
+| Preise anzeigen (Option) | ✅ | A3: `shouldShowPrices`, brutto |
+| Stücklisten-Bestandteile einzeln retournieren (Option) | ✅ | C6: `shouldSplitBillOfMaterials`; Eltern via `parent`-Referenz (v1-`hasChildren` steht fälschlich auf Kindern) |
 
 ### Regeln & Gates (pro Projekt)
 | Feature | Status neu | Anmerkung |
 |---|---|---|
-| Portal je Projekt aktivierbar | ❌ | → Settings-Entity P1 |
-| Rückgabefrist (Tage) | ❌ | P1; Basis konfigurierbar machen (Bestell-/Versand-/Lieferdatum — RETURN-194, ZD 294254) |
-| Bestelldatum-Limit (24 h) | ❌ | P1, klein |
-| Nur gelieferte Bestellungen | 🔶 | Status-Logik existiert (stage 3), Gate noch nicht erzwungen |
-| Mehrfach-Rückgabe-Limit | ✅ | Restmengen-Logik übertrifft altes Portal (positionsgenau) |
-| Nur Aufträge dieses Projekts | ❌ | P1 |
-| Retourenbedingungen (Regel-Engine: Wenn→Dann; Ergebnisse: kein Label / Carrier X / Adresse Y / nicht rücksendbar / Service kontaktieren) | ❌ | = unsere „Stufe B", Xentral-seitig definieren; kombinierbare Regeln gewünscht (RETURN-212) |
-| Gutschrift mit Retourenerstellung (Option) | ❌ | P4; stark nachgefragt (ZD 298037, 293069) |
+| Portal je Projekt aktivierbar | ✅ | `isActive` der Settings-Zeile; Pro-Projekt-Frontend `/p/<slug>` |
+| Rückgabefrist (Tage) | 🔶 | C1: Frist umgesetzt; Basis aktuell NUR Versanddatum — Basis Bestell-/Lieferdatum (RETURN-194, ZD 294254) fehlt |
+| Bestelldatum-Limit (24 h) | ✅ | C1: `orderDateLimitHours` |
+| Nur gelieferte Bestellungen | ✅ | A2: `shouldRequireDelivery`, serverseitig im Token |
+| Mehrfach-Rückgabe-Limit | ✅ | positionsgenaue Restmengen (übertrifft altes Portal) + `shouldLimitToSingleReturn` |
+| Nur Aufträge dieses Projekts | ✅ | `shouldRestrictToProjectOrders`, greift bei Lookup UND Token |
+| Retourenbedingungen (Regel-Engine: Wenn→Dann) | ✅ | C2: kombinierbare Regeln (RETURN-212) als Kind-Collection der Entity; Kriterien Gewicht/Artikel/Hersteller/Land/B2B; Effekte exclude/block/Versandart |
+| Gutschrift mit Retourenerstellung (Option) | ❌ | API-Lücke: Route `createFromReturnOrder` fehlt (→ D1); Setting existiert bereits ohne Wirkung. Stark nachgefragt (ZD 298037, 293069) |
 
 ### Versand & Label
 | Feature | Status neu | Anmerkung |
 |---|---|---|
-| Carrier: Shipcloud, Sendcloud, Swiss Post, DHL Retoure (separat im Portal angebunden) | 🔶 | Neues Konzept: **Xentral-Versandarten statt Zweitanbindung**. Heute API-tauglich in Xentral: DHL Retoure, Sendcloud, UPS, CISC. Lücken: Shipcloud (kein Xentral-Code!), Post.CH (nur UI-gekoppelt) |
-| Standard-Versanddienstleister global + pro Projekt | 🔶 | Stufe A = eine feste Versandart; pro Projekt → P1 |
-| Mehrere Rücksendeadressen | ❌ | P4 (DHL: Retourenempfänger; ZD 294021/293094, RETURN-83/170) |
-| Label automatisch erzeugen + per Mail | ❌ | **P0**: Route `generateShippingLabel` liegt beim API-Team; Mailversand-API (`sendEmail` mit Anhang) ist verifiziert vorhanden |
+| Carrier: Shipcloud, Sendcloud, Swiss Post, DHL Retoure | 🔶 | Neues Konzept: Xentral-Versandarten statt Zweitanbindung. SUP-87 unterstützt aktuell NUR `dhlreturn`; sendcloud/ups_oauth/cisc sind als Follow-up-Assembler vorgesehen (SUP-87-Spec §11a), andere Module → sauberes 409. Shipcloud hat KEINEN Xentral-Retourenlabel-Code, Post.CH nur UI-gekoppelt |
+| Standard-Versanddienstleister global + pro Projekt | ✅ | `shippingMethod` pro Projekt-Settings; Bedingungen können sie regelbasiert überschreiben |
+| Mehrere Rücksendeadressen | ❌ | C5 (DHL `receiverId` pro Settings/Bedingung; heute eine je Versandart-Config); ZD 294021/293094, RETURN-83/170 |
+| Label automatisch erzeugen + per Mail | 🔶 | Route existiert (SUP-87, E2E-bewiesen) — offen: Release in main + Portal-Autoaufruf nach Retoure-Anlage (fail-soft, ~20 Zeilen); Mail-Anhang-Mechanik (C4) greift dann automatisch |
 
 ### Texte, Mails & Branding
 | Feature | Status neu | Anmerkung |
 |---|---|---|
-| Bestätigungsmail-Text (DE/EN, Variablen) | ❌ | P4; Persistenz-Bugs im alten Portal (RETURN-251/197) |
-| Infotexte (Allgemein/Artikel/Bestellung) | ❌ | P4/P5 |
-| „Service kontaktieren"-Text + Service-E-Mail | ❌ | P4 |
-| Logo, Akzent-/Sekundärfarbe, Shopname | 🔶 | Logo/Farbe/Name da; Sekundärfarbe fehlt |
-| Links: Shop/Impressum/AGB/Datenschutz | ❌ | klein, P1 |
-| Personalisierung pro Projekt | ❌ | P1-Settings pro Projekt |
+| Bestätigungsmail (DE/EN, Variablen) | 🔶 | C4: Versand über Xentral-Konto inkl. Anhänge läuft; Vorlage ist fest (i18n) — KONFIGURIERBARE Textvorlagen pro Projekt fehlen (RETURN-251/197) |
+| Infotexte (Allgemein/Artikel/Bestellung) | ❌ | Freitexte pro Projekt fehlen (ZD 295821, RETURN-80) |
+| „Service kontaktieren"-Text + Service-E-Mail | 🔶 | `serviceEmail` pro Projekt ✅ (C2-Block-Hinweise nutzen sie); konfigurierbarer Freitext fehlt |
+| Logo, Akzent-/Sekundärfarbe, Shopname | 🔶 | Farben/Shopname pro Projekt in Xentral ✅; Logo bisher global im Portal (B0-Entscheid, Upload pro Projekt fehlt) |
+| Links: Shop/Impressum/AGB/Datenschutz | ✅ | pro Projekt in Xentral |
+| Personalisierung pro Projekt | ✅ | `/p/<slug>` mit Branding-Overlay + Projekt-`defaultLocale` |
 
 ### Ergebnis in Xentral
 | Feature | Status neu | Anmerkung |
 |---|---|---|
-| Retoure-Beleg angelegt, Wareneingang-ready | ✅ | V1-API create+release, verifiziert |
-| Tracking am Beleg | 🔶 | hängt an Label-Erzeugung (P0) |
+| Retoure-Beleg angelegt, Wareneingang-ready | ✅ | V1 create+release, verifiziert |
+| Tracking am Beleg | ✅ | SUP-87 legt Shipment mit Trackingnummer an (E2E: `999998970412`) |
+
+## 1a. Was EXAKT noch fehlt für volle Feature-Parität
+
+Reihenfolge = Empfehlung. Nichts davon blockiert den Pilot-Rollout mit DHL.
+
+1. **SUP-87-Release abwarten** (extern): Route ist gebaut + von uns E2E-verifiziert,
+   aber noch nicht in main. Ohne Release kein Label auf Kundeninstanzen.
+2. **Portal-Autoaufruf `generateShippingLabel`** nach Anlage+Release (fail-soft:
+   Fehler/404/409 → heutiges „Label wird erstellt"-Verhalten). Danach: Label sofort
+   auf Bestätigungsseite + als Mail-Anhang. Kleiner Task, Code-Pfad liegt bereit.
+3. **Auto-Gutschrift** (einziges Paritäts-Feature mit echter API-Lücke):
+   D1-Improvement `POST /api/v3/creditNotes/actions/createFromReturnOrder`
+   einstellen (Wrapper um fertigen Handler `Retoure::createCreditNote`,
+   www/pages/retoure.php:1349; SUP-87 als Vorbild). Bis dahin: Gutschrift manuell.
+4. **Mehrere Rücksendeadressen (C5)**: `receiverId` pro Settings-Zeile bzw. pro
+   Retourenbedingung wählbar machen (heute eine je Versandart-Config).
+5. **Carrier-Parität**: Follow-up-Assembler in SUP-87-Architektur für
+   sendcloud/ups_oauth/cisc (vorgesehen, Spec §11a); GLS/DPD/Hermes via CISC
+   (→ D2-Klärung); Shipcloud-/Post.CH-Kunden brauchen Ersatzweg.
+6. **Konfigurierbare Texte**: Bestätigungsmail-Vorlage, Infotexte,
+   „Service kontaktieren"-Freitext pro Projekt (heute feste i18n-Texte).
+7. **Frist-Basis** Bestell-/Lieferdatum zusätzlich zu Versanddatum
+   (`deadlineBasis`-Enum erweitern; RETURN-194).
+8. **Logo pro Projekt** in Xentral (heute globaler Portal-Upload).
+9. **Weitere Sprachen** über DE/EN hinaus (Zendesk-Thema 3; i18n-Katalog
+   erweiterbar, Gründe kommen sprachgefiltert aus Xentral).
 
 ---
 
@@ -69,92 +119,104 @@ JQL **quoten**, sonst MCP-Fehler). 54 offen, davon relevante Feature-Requests:
 | Key | Wunsch | Für neues Portal |
 |---|---|---|
 | RETURN-204 | Retourenkosten dem Endkunden belasten (Selbstzahler) | P5 (+ ZD 294933) |
-| RETURN-212 | Mehrere Retourenbedingungen kombinierbar | Stufe-B-Design berücksichtigen |
-| RETURN-194 | Rückgabefrist ab **Lieferdatum** statt Bestelldatum | P1 (Frist-Basis konfigurierbar) |
+| RETURN-212 | Mehrere Retourenbedingungen kombinierbar | ✅ umgesetzt (C2-Engine, UND-Kriterien + Prioritäten) |
+| RETURN-194 | Rückgabefrist ab **Lieferdatum** statt Bestelldatum | offen: deadlineBasis-Erweiterung (§1a Nr. 7) |
 | RETURN-168 | Gründe Xentral↔Portal nicht synchron | ✅ by design gelöst (wir lesen Xentral) |
-| RETURN-137/136 | Menge editierbar / mit Bestellmenge vorbelegt | ✅ bereits umgesetzt |
+| RETURN-137/136 | Menge editierbar / mit Bestellmenge vorbelegt | ✅ umgesetzt |
 | RETURN-131 | Zusätzlicher Auftrags-Filter beim Login | P5 |
-| RETURN-216 | Absender-Mailadresse konfigurierbar | P4 (E-Mail-Konto-ID via sendEmail) |
-| RETURN-208 | Gutschrift-Status steuerbar | P4 (Auto-Gutschrift-Design) |
-| RETURN-170 | Nicht-DE-DHL-Retouren brauchen eigene Rücksendeadresse | P4 (Adress-Verwaltung) |
-| RETURN-152 | Label-Fehler blockiert neue Retoure | Fehler-Design: Retoure ohne Label zulassen (haben wir) |
+| RETURN-216 | Absender-Mailadresse konfigurierbar | ✅ umgesetzt (emailAccountId pro Projekt, C4) |
+| RETURN-208 | Gutschrift-Status steuerbar | offen (Auto-Gutschrift, §1a Nr. 3) |
+| RETURN-170 | Nicht-DE-DHL-Retouren brauchen eigene Rücksendeadresse | offen (C5, §1a Nr. 4) |
+| RETURN-152 | Label-Fehler blockiert neue Retoure | ✅ Fehler-Design: Retoure ohne Label bleibt gültig (fail-soft) |
 | RETURN-138 | USA als Rücksendeland (inkl. States) | P4 |
-| RETURN-80 | Freitext auf Portal-Startseite | P5 (+ ZD 295821) |
+| RETURN-80 | Freitext auf Portal-Startseite | offen (§1a Nr. 6; + ZD 295821) |
 | RETURN-19 | Stornoanträge über Portal | Später/Out-of-Scope v1 |
-| RETURN-177/105/106/44/43 | API-Endpoints (returnCreate, salesOrderList, Tracking, shippingMethod im Beleg) | teils durch V1/V3-API überholt; 43 ✅ (wir setzen shippingMethod) |
+| RETURN-177/105/106/44/43 | API-Endpoints (returnCreate, salesOrderList, Tracking, shippingMethod im Beleg) | durch V1/V3 + SUP-87 überholt bzw. ✅ |
 
 Signal am Rande: Viele offene RETURN-Bugs sind **Settings-Verlust/Instanz-Vermischung**
-(RETURN-251, 249, 237, 215, 78) — Kernargument für Settings in Xentral (Option B).
+(RETURN-251, 249, 237, 215, 78) — Kernargument für Settings in Xentral (Option B),
+inzwischen umgesetzt.
 
 ## 3. Zendesk-Wunschthemen (100 jüngste Tickets; 1.255 gesamt — Ranking indikativ)
 
-1. **Mehr Carrier für Retourenlabel** (~6 Tickets, 5–6 verschiedene Kunden): DHL Standard, DPD, GLS, Hermes, DHL Express, Sendcloud (291191, 291998, 293451, 300129, 296109)
+1. **Mehr Carrier für Retourenlabel** (~6 Tickets, 5–6 verschiedene Kunden): DHL Standard, DPD, GLS, Hermes, DHL Express, Sendcloud (291191, 291998, 293451, 300129, 296109) → §1a Nr. 5
 2. **Versandkosten/Rabatte im Portal & Beleg ausblenden**, intern korrekt verrechnen (291802, 294664, 292494)
-3. **Mehr Sprachen / Standardsprache** im Kunden-Frontend (301345, 296124, 292191)
-4. **B2B/Firmen & bestimmte SKUs ausschließen** (297242, 294018, 294975)
-5. **Mail-/Text-Gestaltung** (HTML, Logo-Position, Startseitentext, „#"-Prefill für Shopify) (293363, 295821, 292775)
-6. **Auto-Gutschrift + Auto-Erstattung** end-to-end (298037, 293069)
-7. **Mehrere/editierbare Rücksendeadressen** (294021, 293094)
+3. **Mehr Sprachen / Standardsprache** im Kunden-Frontend (301345, 296124, 292191) → Standardsprache pro Projekt ✅, weitere Sprachen §1a Nr. 9
+4. **B2B/Firmen & bestimmte SKUs ausschließen** (297242, 294018, 294975) → ✅ C2-Bedingungen (B2B-Filter, Artikel-/Präfix-Regeln)
+5. **Mail-/Text-Gestaltung** (HTML, Logo-Position, Startseitentext, „#"-Prefill für Shopify) (293363, 295821, 292775) → §1a Nr. 6
+6. **Auto-Gutschrift + Auto-Erstattung** end-to-end (298037, 293069) → §1a Nr. 3
+7. **Mehrere/editierbare Rücksendeadressen** (294021, 293094) → §1a Nr. 4
 8. Marktplatz-Retouren-Meldung (Tradebyte/Zalando) (296189, 297647)
 9. Druck-Flexibilität (Retourenlabel parallel drucken, Drucker je Station) (292461, 297860)
-10. Einzelwünsche: Selbstzahler-Label (294933), Auftragsnr als Labelreferenz (294921), Frist ab Versanddatum (294254), Reject-Workflow (291803), Retoure ohne Bestellnummer (294427), MHD/Charge-Übernahme (298242), Gründe-Reporting (292757), Doppelretouren-Sperre (300931 — ✅ haben wir), Release-Webhook (302076), B-Ware (295703), Widerrufs-Button (299404), Label in neuem Tab (296663 — ✅ haben wir)
+10. Einzelwünsche: Selbstzahler-Label (294933), Auftragsnr als Labelreferenz (294921), Frist ab Versanddatum (294254 — ✅ haben wir), Reject-Workflow (291803), Retoure ohne Bestellnummer (294427), MHD/Charge-Übernahme (298242), Gründe-Reporting (292757), Doppelretouren-Sperre (300931 — ✅ haben wir), Release-Webhook (302076), B-Ware (295703), Widerrufs-Button (299404), Label in neuem Tab (296663 — ✅ haben wir)
 
 Lautestes Gesamtsignal (kein Feature): **Stabilität** — ≥10 Ausfall-/Hänger-Meldungen
 in 4 Monaten. Eigenes Portal + Settings in Xentral adressieren das strukturell.
 
-## 4. Umsetzungsweg (Option B, konkretisiert)
+## 4. Umsetzungsweg (Option B) — Phasenstatus
 
-**Architektur:** Settings leben in Xentral (Business Entity, eine Zeile pro Projekt),
-UI als natives Xentral-Modul (Axiom/Mirai), Portal liest zur Laufzeit per API und
-erzwingt die Gates serverseitig. Kein iFrame, keine Zweitpflege, kein Zweit-Login.
+**Architektur (umgesetzt):** Settings leben in Xentral (Business Entity
+`returnsPortalSetting`, eine Zeile pro Projekt, Retourenbedingungen als
+Kind-Collection `lineItems`), UI als natives Xentral-Settings-Modul
+(Einstellungen → Inventory & Fulfillment), Portal liest zur Laufzeit per
+Entity-API (Cache + Stale-Fallback) und erzwingt alle Gates serverseitig.
+Kein iFrame, keine Zweitpflege, kein Zweit-Login.
 
-**Phasen:**
-- **P0 — Label-Route (extern, parallel):** `generateShippingLabel` beim API-Team
-  (Feature-Request liegt vor, generisch über LabelProcessResolver). Interim:
-  Versandzentrum-Verarbeitung; Portal zeigt „Label kommt per E-Mail".
-- **P1 — Settings-Entity in Xentral** (Worktree, `generate-business-entity`):
-  `ReturnsPortalSettings` pro Projekt. **Katalog FINAL (B0, 2026-07-02):**
-  Tabelle `returns_portal_settings`, eine Zeile pro Projekt:
-  `project_id` (unique, FK projekt) · `active` (bool, 0) ·
-  `shipping_method_id` (FK versandarten, nullable) ·
-  `return_deadline_days` (int, 0=aus) · `deadline_basis` (enum order|shipping|delivery, 'order') ·
-  `only_delivered` (bool, 1) · `order_date_limit_hours` (int, 0=aus) ·
-  `multi_return_limit` (bool, 0) · `only_project_orders` (bool, 1) ·
-  `show_prices` (bool, 0) · `bom_split` (bool, 0) · `auto_credit_note` (bool, 0) ·
-  `service_email` (nullable) · `email_account_id` (nullable) ·
-  `login_variant` (enum zip|email, 'zip' — Entscheid: PLZ jetzt, E-Mail später/C7) ·
-  `default_locale` ('de') · Branding (Entscheid: in Xentral, Logo-Upload vorerst
-  im Portal): `accent_color`, `secondary_color`, `shop_name`,
-  `link_shop`, `link_imprint`, `link_terms`, `link_privacy` (alle nullable).
-  Feature-Flag (SOP kebab-case): `returns-portal-settings`.
-- **P2 — Settings-UI in Xentral** (`generate-business-entity-frontend`):
-  natives Modul „Retourenportal" (Liste/Detail, Permissions).
-- **P3 — Portal-Anbindung:** Portal liest Settings per API (Cache + Fallback),
-  Portal-Admin schrumpft auf Bootstrap (Xentral-URL, PAT, DHL-Tracking-Key);
-  Gates serverseitig (Frist, delivered, Projekt).
-- **P4 — Paritäts-Features:** Retourenbedingungen-Engine (= Stufe B; Xentral-seitig
-  definiert, kombinierbar), mehrere Rücksendeadressen, Auto-Gutschrift,
-  Bestätigungsmail/Textvorlagen (sendEmail + E-Mail-Konto), Mehrsprachigkeit,
-  Stücklisten, Login-Variante E-Mail+Shopnummer.
-- **P5 — Delighter (Zendesk/Jira):** Versandkosten/Rabatt ausblenden,
-  B2B-/SKU-Ausschluss (über Bedingungen), Selbstzahler-Retoure,
-  Auftragsnr als Labelreferenz, Reject-Workflow, Gründe-Reporting, Webhook.
-- **Cutover:** Pilot (Testinstanz) → Parallelbetrieb je Kunde → altes Portal ablösen.
+- **P0 — Label-Route: ✅ GELÖST durch SUP-87** (2026-07-06 E2E-bewiesen, s. §0).
+  Offen: Release in main + Portal-Autoaufruf (§1a Nr. 1–2). Der frühere
+  Interim-Weg „Versandzentrum-Automatik" (D3) ist damit obsolet.
+- **P1 — Settings-Entity: ✅ FERTIG** (B1/B2). Ist-Feldkatalog der Entity
+  `returnsPortalSetting` (Tabelle `returns_portal_settings`, eine Zeile pro
+  Projekt): `project` (unique) · `urlSlug` (Pro-Projekt-Frontend `/p/<slug>`,
+  auto-abgeleitet) · `isActive` · `shippingMethod` · `loginVariant`
+  (enum `zip|email|customerNumber`) · `defaultLocale` · `returnDeadlineDays` ·
+  `deadlineBasis` (enum aktuell nur `shipping`) · `shouldRequireDelivery` ·
+  `orderDateLimitHours` · `shouldLimitToSingleReturn` ·
+  `shouldRestrictToProjectOrders` · `shouldShowPrices` ·
+  `shouldSplitBillOfMaterials` · `shouldAutoCreateCreditNote` (noch ohne
+  Wirkung, s. §1a Nr. 3) · `serviceEmail` · `emailAccountId` · Branding
+  `accentColor`/`secondaryColor`/`shopName` · Links `shopLink`/`imprintLink`/
+  `termsLink`/`privacyLink` · Kind-Collection **Retourenbedingungen**
+  (`lineItems`: prio, effect exclude/block/useShippingMethod, Kriterien
+  Gewicht/Artikelnr/Hersteller/Land/B2B, customerNote, shippingMethod).
+  Feature-Flag (SOP kebab-case): `returns-portal-settings` (LaunchDarkly vor
+  Prod anlegen).
+- **P2 — Settings-UI in Xentral: ✅ FERTIG** (B3, EntityBase-Modul inkl.
+  Bedingungen-Sektion).
+- **P3 — Portal-Anbindung: ✅ FERTIG** (B4/B5: Entity-API mit PAT + Scope
+  `entity:returnsPortalSetting:read`, 60-s-Cache, Stale-/Lokal-Fallback;
+  Portal-Admin auf Bootstrap geschrumpft; Gates serverseitig).
+- **P4 — Paritäts-Features: 🔶 GRÖSSTENTEILS FERTIG** — ✅ C1 Gates, C2
+  Bedingungen-Engine, C4 Bestätigungsmail, C6 Stücklisten, C7 Login-Varianten.
+  Offen: C5 Rücksendeadressen, Auto-Gutschrift, konfigurierbare Texte,
+  weitere Sprachen (Details §1a).
+- **P5 — Delighter: ❌ offen** (Versandkosten/Rabatt ausblenden, Selbstzahler,
+  Labelreferenz, Reject-Workflow, Gründe-Reporting, Webhook).
+- **Cutover: ❌ offen** (Block E): Pilot-E2E inkl. Label auf Testinstanz →
+  Migrations-Checkliste pro Kunde (Alt-Config liegt im externen Dienst, kein
+  Export → Neukonfiguration) → Parallelbetrieb → Alt-Portal + `["*"]`-PAT
+  abschalten.
 
-## 5. Hürden & Risiken
+## 5. Hürden & Risiken (aktualisiert)
 
-1. **Label-Erzeugung (P0)** — einziger harter technischer Blocker; Abhängigkeit API-Team.
-2. **Core-Beitrag:** Settings-Entity + Modul landen im Monolithen → CODEOWNERS/
-   Owning-Team-Buy-in nötig (vermutlich FFU); Prozess einplanen.
-3. **Carrier-Lücken vs. Alt-Portal:** Shipcloud hat keinerlei Xentral-Label-Code;
-   Post.CH nur UI-gekoppelt. Kunden, die GLS/DPD via Shipcloud nutzten, brauchen
-   Ersatz (CISC oder Sendcloud). Swiss-Post-Parität = Port auf ReturnLabelProcessor.
-4. **CISC-Abhängigkeit:** GLS & Co. via CISC-Gateway = Zulieferung CISC-/Shipping-Team.
-5. **Settings-Migration:** Alt-Portal-Konfiguration liegt im externen Dienst — pro
-   Kunde Neukonfiguration (kein Export bekannt).
-6. **Mehrsprachigkeit:** Portal-Frontend hat noch kein i18n.
-7. **Betrieb:** eigenes Hosting (VPS) → Monitoring/Alerts einplanen (Zendesk-Signal Stabilität).
-8. Kleinigkeiten: JQL `project = "RETURN"` quoten; Login-Paritäts-Entscheid (PLZ vs. E-Mail).
+1. ~~Label-Erzeugung (P0)~~ **gelöst durch SUP-87** — Restrisiko: Release-Termin
+   + PR-Review beim API-Team (Feedback von uns: fehlende Carrier-Credentials
+   antworten als 500 statt 4xx).
+2. **Core-Beitrag:** Branch `SUP-0-retourenportal-settings` ist gepusht; PR +
+   Owning-Team-Review (product-adoption/application-framework/frontend) stehen
+   aus; LaunchDarkly-Flag vor Prod.
+3. **Carrier-Lücken vs. Alt-Portal:** SUP-87 kann heute nur DHL Retoure;
+   sendcloud/ups_oauth/cisc sind vorgesehene Follow-ups. Shipcloud hat keinerlei
+   Xentral-Label-Code; Post.CH nur UI-gekoppelt. Kunden mit GLS/DPD via
+   Shipcloud brauchen Ersatz (CISC oder Sendcloud).
+4. **CISC-Abhängigkeit:** GLS & Co. via CISC-Gateway = Zulieferung
+   CISC-/Shipping-Team (D2-Frage offen).
+5. **Settings-Migration:** Alt-Portal-Konfiguration liegt im externen Dienst —
+   pro Kunde Neukonfiguration (kein Export bekannt).
+6. **Betrieb:** eigenes Hosting (VPS) → Monitoring/Alerts einplanen
+   (Zendesk-Signal Stabilität).
+7. Kleinigkeiten: JQL `project = "RETURN"` quoten; ~~Login-Paritäts-Entscheid~~
+   erledigt (C7: pro Portal wählbar).
 
 ## 6. Carrier-Strategie / GLS-Frage
 
@@ -164,6 +226,12 @@ REST-Protokoll inkl. `createReturnLabel`). **GLS-Retouren = über CISC enablen**
 (Versandart `carrierId: gls`, `shipmentType: return`), NICHT als native
 Neuimplementierung — der Code zeigt klar: neue Carrier bekommen keine
 Einzelintegrationen mehr. Voraussetzung: CISC-Backend unterstützt GLS downstream
-(Klärung mit Shipping-Team). Unsere generische Label-Route deckt CISC-Versandarten
-automatisch ab; das alte Portal löste GLS/DPD über Shipcloud-Aggregation — im
-neuen Modell übernehmen CISC/Sendcloud diese Rolle.
+(Klärung mit Shipping-Team, Task D2). Das alte Portal löste GLS/DPD über
+Shipcloud-Aggregation — im neuen Modell übernehmen CISC/Sendcloud diese Rolle.
+
+**SUP-87-Anschluss:** Die Route ist carrier-agnostisch geschnitten
+(`ReturnLabelCommandAssemblerResolver` dispatcht aufs Versandart-Modul der
+Retoure); implementiert ist bisher der DHL-Assembler, sendcloud/ups_oauth/cisc
+sind laut Spec §11a als weitere Assembler vorgesehen, nicht unterstützte Module
+antworten 409. Sobald der CISC-Assembler existiert, deckt die Route damit auch
+GLS/DPD/Hermes ab — ohne Änderung am Portal.
