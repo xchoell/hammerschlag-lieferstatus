@@ -7,6 +7,7 @@ import {
   getSalesOrderById,
   createReturn,
   releaseReturn,
+  generateReturnShippingLabel,
   listReturnDocuments,
   getReturnDocument,
   listReturnsForSalesOrder,
@@ -340,6 +341,22 @@ export async function submitReturn({ salesOrderId, selections, shippingMethodId 
     console.warn(`[returns] Freigabe von ${returnId} fehlgeschlagen: ${err.status || err.message}`);
   }
   return { returnId };
+}
+
+// P0-Anschluss (SUP-87): Retourenlabel direkt nach der Freigabe erzeugen.
+// Fail-soft: null bei JEDEM Fehler — 404 (Route auf der Instanz noch nicht
+// released), 409 (Carrier ohne Label-Unterstützung), Carrier-/Credential-
+// Fehler. Das Portal verhält sich dann wie bisher („Label wird erstellt",
+// kommt später über das Versandzentrum).
+export async function generateLabel(returnId) {
+  try {
+    return await generateReturnShippingLabel(returnId);
+  } catch (err) {
+    console.warn(
+      `[returns] Label-Erzeugung für Retoure ${returnId} nicht möglich (${err.status || err.message}) – Label kommt ggf. später.`,
+    );
+    return null;
+  }
 }
 
 // Dokumente (Label/Beleg) einer Retoure auflisten — fürs Done-Page-Linking.

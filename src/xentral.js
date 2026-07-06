@@ -181,6 +181,14 @@ export async function releaseReturn(id) {
   return xentralWrite('POST', `/api/v1/returns/${id}/actions/release`, undefined);
 }
 
+// Retourenlabel erzeugen (v3-Action aus SUP-87). Scope: return:generateShippingLabel.
+// Antwort: { fileId, trackingNumber, trackingLink } — fileId ist die Dokument-ID,
+// die getReturnDocument bereits ausliefert.
+export async function generateReturnShippingLabel(id) {
+  const { data } = await xentralWrite('POST', `/api/v3/returnOrders/${id}/actions/generateShippingLabel`, undefined);
+  return data?.data ?? null;
+}
+
 // Dokumente einer Retoure (Label, Retourenbeleg, ...).
 export async function listReturnDocuments(id) {
   const json = await xentralRequest(`/api/v1/returns/${id}/documents`);

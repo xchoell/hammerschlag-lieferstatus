@@ -65,7 +65,7 @@ Legende: ✅ = im neuen Portal vorhanden (E2E-verifiziert) · 🔶 = teilweise �
 | Carrier: Shipcloud, Sendcloud, Swiss Post, DHL Retoure | 🔶 | Neues Konzept: Xentral-Versandarten statt Zweitanbindung. SUP-87 unterstützt aktuell NUR `dhlreturn`; sendcloud/ups_oauth/cisc sind als Follow-up-Assembler vorgesehen (SUP-87-Spec §11a), andere Module → sauberes 409. Shipcloud hat KEINEN Xentral-Retourenlabel-Code, Post.CH nur UI-gekoppelt |
 | Standard-Versanddienstleister global + pro Projekt | ✅ | `shippingMethod` pro Projekt-Settings; Bedingungen können sie regelbasiert überschreiben |
 | Mehrere Rücksendeadressen | ❌ | C5 (DHL `receiverId` pro Settings/Bedingung; heute eine je Versandart-Config); ZD 294021/293094, RETURN-83/170 |
-| Label automatisch erzeugen + per Mail | 🔶 | Route existiert (SUP-87, E2E-bewiesen) — offen: Release in main + Portal-Autoaufruf nach Retoure-Anlage (fail-soft, ~20 Zeilen); Mail-Anhang-Mechanik (C4) greift dann automatisch |
+| Label automatisch erzeugen + per Mail | ✅ | Portal ruft SUP-87-Route nach Anlage fail-soft auf (2026-07-06 E2E: Label sofort auf Done-Seite + Mail-Anhang via C4); einzige Restabhängigkeit: SUP-87-Release in main |
 
 ### Texte, Mails & Branding
 | Feature | Status neu | Anmerkung |
@@ -89,9 +89,9 @@ Reihenfolge = Empfehlung. Nichts davon blockiert den Pilot-Rollout mit DHL.
 
 1. **SUP-87-Release abwarten** (extern): Route ist gebaut + von uns E2E-verifiziert,
    aber noch nicht in main. Ohne Release kein Label auf Kundeninstanzen.
-2. **Portal-Autoaufruf `generateShippingLabel`** nach Anlage+Release (fail-soft:
-   Fehler/404/409 → heutiges „Label wird erstellt"-Verhalten). Danach: Label sofort
-   auf Bestätigungsseite + als Mail-Anhang. Kleiner Task, Code-Pfad liegt bereit.
+2. ~~Portal-Autoaufruf `generateShippingLabel`~~ ✅ **UMGESETZT 2026-07-06**
+   (fail-soft; Label sofort auf Bestätigungsseite + Mail-Anhang; dabei gefixt:
+   C2-Versandart-Override wird jetzt auch am Beleg gespeichert, s. RETOURE.md).
 3. **Auto-Gutschrift** (einziges Paritäts-Feature mit echter API-Lücke):
    D1-Improvement `POST /api/v3/creditNotes/actions/createFromReturnOrder`
    einstellen (Wrapper um fertigen Handler `Retoure::createCreditNote`,

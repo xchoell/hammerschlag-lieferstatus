@@ -17,6 +17,7 @@ import {
   verifyLabelToken,
   loadReturnable,
   submitReturn,
+  generateLabel,
   returnDocuments,
   fetchReturnDocument,
 } from './returns.js';
@@ -350,13 +351,19 @@ customer.post('/retoure', retoureLimiter, async (req, res) => {
     // Zwischenschritt: erst die Zusammenfassung zeigen, anlegen nur mit confirm=1.
     if (req.body.confirm !== '1') return res.send(renderRetoureConfirm(data, selections, req.body.t));
 
-    // Versandart kommt aus den Server-Settings (Xentral bzw. lokaler
-    // Fallback, Stufe A), NICHT aus dem Client.
+    // Versandart kommt serverseitig aus loadReturnable (= Projekt-Settings
+    // inkl. C2-Regel-Override „Versandart verwenden"), NICHT aus dem Client.
+    // Vorher stand hier settings.shippingMethodId — damit wurde eine per
+    // Bedingung überschriebene Versandart zwar angezeigt, aber nicht angelegt.
     const { returnId } = await submitReturn({
       salesOrderId,
       selections,
-      shippingMethodId: settings.shippingMethodId || '',
+      shippingMethodId: data?.shippingMethod?.id || settings.shippingMethodId || '',
     });
+    // Label sofort erzeugen (SUP-87-Route). Fail-soft: schlägt das fehl,
+    // zeigt die Done-Seite wie bisher „Label wird erstellt" — die Retoure
+    // selbst ist davon unberührt.
+    await generateLabel(returnId);
     const docs = await returnDocuments(returnId);
     // C4: Bestätigungsmail fire-and-forget — darf die Kundenantwort weder
     // verzögern noch scheitern lassen.

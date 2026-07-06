@@ -347,6 +347,29 @@ Settings-Feld `loginVariant` der Xentral-Zeile (Pro-Projekt-Portale
   Auftrag 200005 hat `kundennummer=10005` (per Dev-DB gesetzt),
   E-Mail `rosel-philipp@example.com`; `standard-1` steht wieder auf `zip`.
 
+### Sofort-Label: Autoaufruf der SUP-87-Route (umgesetzt + E2E-verifiziert 2026-07-06)
+
+Nach Anlage+Freigabe ruft das Portal `POST /api/v3/returnOrders/{id}/actions/
+generateShippingLabel` auf (SUP-87; PAT-Scope `return:generateShippingLabel`).
+Erfolg → das Label hängt sofort am Beleg, die Done-Seite zeigt direkt
+„Versandlabel herunterladen" und die C4-Bestätigungsmail bekommt das PDF als
+Anhang (bestehende Anhang-Mechanik). **Fail-soft** (`generateLabel` in
+returns.js): 404 (Route auf der Instanz nicht released), 409 (Carrier ohne
+Label-Unterstützung — SUP-87 kann bisher nur `dhlreturn`) oder Carrier-Fehler
+→ exakt das bisherige Verhalten („Label wird erstellt"), die Retoure bleibt
+gültig. Kein Feature-Flag nötig.
+
+**Dabei gefixt:** Der POST `/retoure` legte die Retoure immer mit
+`settings.shippingMethodId` an — eine per C2-Regel überschriebene Versandart
+(`useShippingMethod`) wurde angezeigt, aber nicht gespeichert. Jetzt nimmt
+submitReturn die EFFEKTIVE Methode aus `loadReturnable` (`data.shippingMethod`).
+
+E2E auf dem Worktree (Test-Branch `test-sup87-integration` mit SUP-87):
+Retoure 5 (Steelova 45 kg → Regel „Spedition") = Beleg mit
+`versandart=spedition` + Fail-soft-Hinweis; Retoure 6 (Regel testweise aus →
+`dhlreturn`) = „Versandlabel herunterladen" direkt auf der Bestätigungsseite,
+Download = echtes DHL-Sandbox-PDF (30 KB).
+
 ## Bewusst noch offen (Backlog)
 
 - **Versandart-Regeln (Punkt 1)**: Regel-System im Admin (Kriterium Gewicht/Größe
