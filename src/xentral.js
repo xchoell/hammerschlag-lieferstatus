@@ -186,6 +186,14 @@ export async function getReturnDocument(id, documentId) {
   return xentralFetchBinary(`/api/v1/returns/${id}/documents/${documentId}`);
 }
 
+// E-Mail über ein Xentral-E-Mail-Konto verschicken (Bestätigungsmail C4).
+// Scope: mailAcct:sendEmail. attachments = [{fileName, fileContent(base64)}].
+// Hinweis: Xentral stellt die Mail in die crm-email-Queue zu (Status 'draft',
+// bis ein Queue-Worker sie verschickt).
+export async function sendEmailViaAccount(accountId, payload) {
+  return xentralWrite('PATCH', `/api/v3/emailAccounts/${accountId}/actions/sendEmail`, payload);
+}
+
 // Alle Retouren eines Auftrags (für die „bereits retourniert"-Prüfung).
 // Filter-Key ist `salesOrderId` (per POC verifiziert; NICHT `salesOrder.id`).
 export async function listReturnsForSalesOrder(salesOrderId) {

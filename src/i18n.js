@@ -159,6 +159,16 @@ const de = {
   'err.loadFailed': 'Die Artikel konnten nicht geladen werden. Bitte versuche es später erneut.',
   'err.createFailed': 'Die Retoure konnte nicht angelegt werden. Bitte versuche es später erneut.',
   'err.rateLimited': 'Zu viele Anfragen. Bitte warte einen Moment.',
+  // Bestätigungsmail (C4)
+  'mail.return.subject': 'Deine Retoure zur Bestellung {order}',
+  'mail.return.greeting': 'Hallo {name},',
+  'mail.return.greetingGeneric': 'Hallo,',
+  'mail.return.intro': 'deine Retoure zur Bestellung {order} ist angemeldet. Du sendest zurück:',
+  'mail.return.item': 'Artikel',
+  'mail.return.shipping': 'Rücksendung mit: {method}',
+  'mail.return.labelAttached': 'Dein Versandlabel und der Retourenbeleg sind angehängt. Bitte lege den Beleg dem Paket bei.',
+  'mail.return.labelPending': 'Dein Versandlabel wird erstellt und kommt in einer separaten E-Mail.',
+  'mail.return.signoff': 'Vielen Dank – {shop}',
 };
 
 const en = {
@@ -259,6 +269,16 @@ const en = {
   'err.loadFailed': 'The items could not be loaded. Please try again later.',
   'err.createFailed': 'The return could not be created. Please try again later.',
   'err.rateLimited': 'Too many requests. Please wait a moment.',
+  // Confirmation mail (C4)
+  'mail.return.subject': 'Your return for order {order}',
+  'mail.return.greeting': 'Hello {name},',
+  'mail.return.greetingGeneric': 'Hello,',
+  'mail.return.intro': 'your return for order {order} has been registered. You are sending back:',
+  'mail.return.item': 'Item',
+  'mail.return.shipping': 'Return shipping with: {method}',
+  'mail.return.labelAttached': 'Your shipping label and the return slip are attached. Please include the slip in the parcel.',
+  'mail.return.labelPending': 'Your shipping label is being created and will arrive in a separate email.',
+  'mail.return.signoff': 'Thank you – {shop}',
 };
 
 const CATALOG = { de, en };

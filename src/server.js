@@ -22,6 +22,7 @@ import {
 } from './returns.js';
 import { getReturnsSettings, getSettingsBySlug } from './xentral-settings.js';
 import { runWithPortal, currentPortal } from './portal-context.js';
+import { sendReturnConfirmation } from './confirmation-mail.js';
 import {
   renderForm,
   renderResult,
@@ -345,6 +346,16 @@ customer.post('/retoure', retoureLimiter, async (req, res) => {
       shippingMethodId: settings.shippingMethodId || '',
     });
     const docs = await returnDocuments(returnId);
+    // C4: Bestätigungsmail fire-and-forget — darf die Kundenantwort weder
+    // verzögern noch scheitern lassen.
+    sendReturnConfirmation({
+      settings,
+      locale: currentLocale(),
+      data,
+      selections,
+      returnId,
+      documents: docs,
+    }).catch((err) => console.warn('[mail] Bestätigungsmail unerwartet fehlgeschlagen:', err));
     return res.send(
       renderRetoureDone({ orderNumber: data?.orderNumber, returnId, docs, token: labelToken(returnId) }),
     );

@@ -254,6 +254,31 @@ E2E gegen `/p/standard-1` verifiziert: offen → Formular; Frist 1 Tag →
 Limit + bestehende Retoure → „eine weitere ist nicht möglich", Formular weg,
 POST jeweils 403.
 
+### C4: Bestätigungsmail + C6: Stücklisten-Split (umgesetzt + E2E-verifiziert 2026-07-04)
+
+**C4 — Bestätigungsmail** (`src/confirmation-mail.js`): nach erfolgreicher
+Anmeldung fire-and-forget über `PATCH /api/v3/emailAccounts/{id}/actions/sendEmail`
+(Konto = `emailAccountId` aus den Projekt-Settings; ohne Konto/Kunden-E-Mail
+wird still übersprungen). Inhalt DE/EN via i18n: Anrede (Name aus der
+Auftragsadresse), Bestellnummer, Positionsliste, Versandart, Label-Hinweis;
+liegen schon Belege vor, gehen sie als Base64-Anhang mit (Label kommt wegen
+P0 i. d. R. später separat). **Betrieb:** Xentral stellt die Mail in die
+`crm-email`-Queue — auf der Kundeninstanz läuft der Worker sowieso, lokal
+`php artisan queue:work --queue=crm-email` (Dev-Konto: emailbackup id 1 →
+Herd-Mail-Catcher 127.0.0.1:2525, braucht Dummy-Credentials, sonst
+„Could not authenticate").
+
+**C6 — Stücklisten-Split**: mit `shouldSplitBillOfMaterials` zeigt der
+Retoure-Flow die BOM-**Kinder** einzeln (Blatt-Positionen), der Elternteil
+fällt raus; ohne Setting wie bisher nur Top-Level. Eltern werden NUR über
+`parent`-Referenzen erkannt — das v1-Feld `hasChildren` steht (live
+verifiziert) fälschlich auf den Kindern. Kinder = `explodiert_parent` in
+`auftrag_position`.
+
+E2E auf `/p/standard-1` (Auftrag 200005): Split aus → nur „Nordvik"-Parent;
+Split an → „BOM-Kind A/B" einzeln retournierbar; Retoure auf Kind B → Mail
+„Hallo Rosel Philipp, … 1× BOM-Kind B … DHL Retoure", nach Queue-Flush `sent`.
+
 ## Bewusst noch offen (Backlog)
 
 - **Versandart-Regeln (Punkt 1)**: Regel-System im Admin (Kriterium Gewicht/Größe

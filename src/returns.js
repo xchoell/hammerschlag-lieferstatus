@@ -193,10 +193,20 @@ export async function loadReturnable(salesOrderId, locale = 'de', settings = nul
   if (!order) return null;
 
   const rawPositions = order.positions || order.attributes?.positions || [];
-  // MVP0: Top-Level-Positionen mit echter Artikelmenge. Stücklisten-Kinder
-  // (parent gesetzt) bleiben außen vor -> TODO (Stücklisten-Aufteilung).
+  // C6 Stücklisten: mit shouldSplitBillOfMaterials werden die BOM-KINDER
+  // einzeln retournierbar (Blatt-Positionen; Eltern mit Kindern fallen raus).
+  // Ohne das Setting wie bisher nur Top-Level-Positionen (Kinder unsichtbar).
+  const splitBom = settings?.raw?.shouldSplitBillOfMaterials === true;
+  // Eltern NUR über parent-Referenzen erkennen: das v1-Feld hasChildren steht
+  // (live verifiziert) fälschlich auf den KINDERN, nicht auf dem Elternteil.
+  const parentIds = new Set(
+    rawPositions
+      .filter((p) => p.parent)
+      .map((p) => String(typeof p.parent === 'object' ? p.parent?.id : p.parent)),
+  );
+  const isBomParent = (p) => parentIds.has(String(p.id));
   const items = rawPositions
-    .filter((p) => !p.parent && Number(p.quantity) > 0)
+    .filter((p) => (splitBom ? !isBomParent(p) : !p.parent) && Number(p.quantity) > 0)
     .map((p) => ({
       id: String(p.id),
       name: pick(p, ['product.name', 'name', 'product.number']) || 'Artikel',
@@ -256,6 +266,13 @@ export async function loadReturnable(salesOrderId, locale = 'de', settings = nul
   return {
     salesOrderId: String(salesOrderId),
     orderNumber: pick(order, ['documentNumber', 'number', 'belegnr']) || String(salesOrderId),
+    // Für die Bestätigungsmail (C4): Kundenadresse aus dem Auftrag.
+    customerEmail:
+      pick(order, ['delivery.shippingAddress.email', 'financials.billingAddress.email', 'deliveryAddress.email']) || '',
+    customerName:
+      f.recipientName(order) ||
+      pick(order, ['delivery.shippingAddress.name', 'financials.billingAddress.name']) ||
+      '',
     items,
     reasons,
     shippingMethod: selected ? { id: String(selected.id), designation: selected.designation } : null,
