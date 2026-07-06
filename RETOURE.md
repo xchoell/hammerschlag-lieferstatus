@@ -319,6 +319,34 @@ um den bestehenden Handler. → Gehört als zweiter API-Improvement in D1.
 Das Setting `shouldAutoCreateCreditNote` bleibt bis dahin ohne Wirkung im
 Portal (bewusst: kein DIY-Nachbau der Gutschrift-Logik).
 
+### C7: Login-Varianten (umgesetzt + E2E-verifiziert 2026-07-06)
+
+Der Zweitfaktor im Kunden-Login (neben der Nummer) ist pro Portal wählbar:
+**`zip` (Default) | `email` | `customerNumber`** — gesteuert über das
+Settings-Feld `loginVariant` der Xentral-Zeile (Pro-Projekt-Portale
+`/p/<slug>`) bzw. `lookup.loginVariant` im `/admin` → Allgemein
+(Standard-Portal, .env-Key `LOGIN_VARIANT`).
+
+- **Server bestimmt die Variante** (`currentLoginVariant()` in
+  portal-context.js) — der Client kann keinen schwächeren Faktor erzwingen.
+  Unbekannte Werte fallen auf `zip` zurück.
+- **Prüfung equals-only + fail-closed** (`secretMatches` in lookup.js):
+  `email` gegen alle Adress-E-Mails des Belegs (`f.allEmails`: shipTo/soldTo/
+  documentAddress — live verifiziert, gleiche Pfade wie die PLZ; Lieferschein-
+  Fallback wie gehabt), case-insensitiv. `customerNumber` gegen
+  `f.customerNumber` des Belegs; fehlt der Wert am Beleg, gibt es NIE einen
+  Treffer (kein Oracle, weiterhin generisches 404).
+- Formularfeld heißt einheitlich `secret` (Label/Placeholder/Fehlertexte
+  variantenabhängig, DE/EN; `type=email` bzw. `inputmode` passend); das alte
+  Feld `zip` wird im POST weiter akzeptiert.
+- Die Liefer-PLZ fließt nur in der `zip`-Variante in die DHL-Detailabfrage
+  ein; bei `email`/`customerNumber` läuft der Carrier-Check ohne
+  `recipientPostalCode` (weniger Detailtiefe, sonst identisch).
+- Mock-Modus kennt nur die PLZ-Variante (Demo-Daten ohne E-Mail/Kundennummer).
+- E2E auf dem Worktree: alle drei Varianten inkl. Negativfälle; Dev-Daten:
+  Auftrag 200005 hat `kundennummer=10005` (per Dev-DB gesetzt),
+  E-Mail `rosel-philipp@example.com`; `standard-1` steht wieder auf `zip`.
+
 ## Bewusst noch offen (Backlog)
 
 - **Versandart-Regeln (Punkt 1)**: Regel-System im Admin (Kriterium Gewicht/Größe

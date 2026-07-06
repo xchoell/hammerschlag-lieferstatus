@@ -31,6 +31,20 @@ export const EDITABLE = [
   { section: 'allgemein', key: 'brand.links.terms', label: 'AGB-Link', type: 'text', hint: 'https://…' },
   { section: 'allgemein', key: 'brand.links.privacy', label: 'Datenschutz-Link', type: 'text', hint: 'https://…' },
   { section: 'allgemein', key: 'defaultLocale', label: 'Standardsprache Kundenseiten (de/en)', type: 'text', hint: 'de oder en; Besucher können per ?lang= umschalten' },
+  // Zweitfaktor im Kunden-Login (Standard-Portal; /p/<slug> nutzt das
+  // loginVariant-Feld der Xentral-Settings-Zeile des Projekts).
+  {
+    section: 'allgemein',
+    key: 'lookup.loginVariant',
+    label: 'Login-Zweitfaktor (neben der Nummer)',
+    type: 'select',
+    options: [
+      { value: 'zip', label: 'Liefer-PLZ' },
+      { value: 'email', label: 'E-Mail-Adresse' },
+      { value: 'customerNumber', label: 'Kundennummer' },
+    ],
+    hint: 'nicht gesetzt = Liefer-PLZ',
+  },
   { section: 'allgemein', key: 'useMock', label: 'Mock-Modus (Demo-Daten statt echter Instanz)', type: 'bool' },
   // ── Auftragsstatus ─────────────────────────────────────────────────────
   { section: 'auftragsstatus', key: 'dhl.apiKey', label: 'DHL API Key', type: 'secret' },

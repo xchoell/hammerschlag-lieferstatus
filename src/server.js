@@ -21,7 +21,7 @@ import {
   fetchReturnDocument,
 } from './returns.js';
 import { getReturnsSettings, getSettingsBySlug } from './xentral-settings.js';
-import { runWithPortal, currentPortal } from './portal-context.js';
+import { runWithPortal, currentPortal, currentLoginVariant } from './portal-context.js';
 import { sendReturnConfirmation } from './confirmation-mail.js';
 import {
   renderForm,
@@ -95,12 +95,18 @@ customer.use(localeMiddleware);
 customer.get('/', (_req, res) => res.send(renderForm()));
 
 customer.post('/status', lookupLimiter, async (req, res) => {
-  const { query, zip } = req.body || {};
-  if (!query || !zip) {
-    return res.status(400).send(renderForm({ error: t('form.missingInput'), query }));
+  const { query } = req.body || {};
+  // Zweitfaktor-Feld heißt seit C7 einheitlich "secret"; "zip" bleibt als
+  // Fallback für Bookmarks/gecachte Formulare der alten Version akzeptiert.
+  const secret = req.body?.secret ?? req.body?.zip;
+  // Die Variante bestimmt der SERVER aus den Portal-Settings — was der Client
+  // schickt, ist egal (kein Downgrade auf einen schwächeren Faktor möglich).
+  const variant = currentLoginVariant();
+  if (!query || !secret) {
+    return res.status(400).send(renderForm({ error: t(`form.missing.${variant}`), query }));
   }
   try {
-    const status = await lookupStatus(query, zip);
+    const status = await lookupStatus(query, secret, variant);
     if (!status) return res.status(404).send(renderNotFound());
     // Projekt-Portal: Aufträge fremder Projekte sind hier nicht auffindbar
     // (Setting "Nur Aufträge dieses Projekts", Default an).

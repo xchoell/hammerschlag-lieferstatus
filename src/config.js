@@ -12,6 +12,10 @@ function int(value, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+// Zulässige Login-Varianten (Zweitfaktor im Status-Login). Muss zu den
+// Enum-Werten der Xentral-Entity returnsPortalSetting.loginVariant passen.
+export const LOGIN_VARIANTS = ['zip', 'email', 'customerNumber'];
+
 export const config = {
   xentral: {
     // Basis-URL ohne abschließenden Slash.
@@ -57,6 +61,14 @@ export const config = {
     onlyDelivered: bool(process.env.RETURNS_ONLY_DELIVERED, true),
     // Artikelpreise (brutto) in der Retoure-Auswahl anzeigen. Default aus.
     showPrices: bool(process.env.RETURNS_SHOW_PRICES, false),
+  },
+  // Login des Standard-Portals (ohne /p/<slug>): welcher Zweitfaktor wird
+  // neben der Nummer abgefragt (zip|email|customerNumber). Pro-Projekt-Portale
+  // nutzen stattdessen das loginVariant-Feld ihrer Xentral-Settings-Zeile.
+  lookup: {
+    loginVariant: LOGIN_VARIANTS.includes(process.env.LOGIN_VARIANT)
+      ? process.env.LOGIN_VARIANT
+      : 'zip',
   },
   // Settings-Sync aus Xentral (B5). Standard: gleiche Instanz + gleicher PAT
   // wie xentral.* (leer lassen). Die Overrides braucht man nur, wenn die

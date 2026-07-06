@@ -46,6 +46,9 @@ function mapRemote(row) {
     shippingMethodId: row.shippingMethod?.id ? String(row.shippingMethod.id) : '',
     onlyDelivered: row.shouldRequireDelivery !== false,
     showPrices: row.shouldShowPrices === true,
+    // Zweitfaktor im Kunden-Login (zip|email|customerNumber); Validierung
+    // gegen die bekannten Varianten macht currentLoginVariant().
+    loginVariant: row.loginVariant || 'zip',
     // Projekt-Gate fürs Pro-Projekt-Frontend: Aufträge fremder Projekte sind
     // unter diesem Portal nicht auffindbar (Default an).
     restrictToProject: row.shouldRestrictToProjectOrders !== false,

@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { config } from './config.js';
+import { config, LOGIN_VARIANTS } from './config.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pro-Projekt-Frontend: Request-Kontext für /p/<slug>/… (AsyncLocalStorage,
@@ -25,6 +25,14 @@ export function portalPath(path = '/') {
   const slug = store.getStore()?.slug;
   if (!slug) return path;
   return path === '/' ? `/p/${slug}` : `/p/${slug}${path}`;
+}
+
+// Login-Variante des aktiven Portals: Projekt-Settings aus Xentral, sonst die
+// lokale Einstellung des Standard-Portals. Unbekannte Werte -> zip (fail-safe:
+// die PLZ-Prüfung ist der strengste, immer verfügbare Zweitfaktor).
+export function currentLoginVariant() {
+  const v = store.getStore()?.settings?.loginVariant || config.lookup.loginVariant;
+  return LOGIN_VARIANTS.includes(v) ? v : 'zip';
 }
 
 // Effektives Branding: Projekt-Settings aus Xentral überlagern die lokalen

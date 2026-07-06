@@ -2,7 +2,7 @@ import { config } from './config.js';
 import { t, currentLocale } from './i18n.js';
 import { STAGES, CANCELLED_STAGES } from './lookup.js';
 import { logoStatus } from './logo.js';
-import { portalPath, currentBrand } from './portal-context.js';
+import { portalPath, currentBrand, currentLoginVariant } from './portal-context.js';
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -196,7 +196,16 @@ function priceHtml(item, showPrices) {
   return ` <span style="color:#6b7280;font-size:12px;">· ${esc(formatted)}</span>`;
 }
 
+// Eingabefeld-Attribute je Login-Variante (C7). type=email bringt die
+// Browser-Validierung mit; PLZ bleibt numerische Tastatur auf Mobile.
+const SECRET_INPUT_ATTRS = {
+  zip: 'inputmode="numeric"',
+  email: 'type="email"',
+  customerNumber: 'inputmode="text"',
+};
+
 export function renderForm({ error, query } = {}) {
+  const variant = currentLoginVariant();
   return layout(
     t('title.status'),
     `
@@ -218,8 +227,8 @@ export function renderForm({ error, query } = {}) {
         </span>
       </div>
       <input id="query" name="query" inputmode="text" required value="${esc(query || '')}" placeholder="${esc(t('form.numberPlaceholder'))}" />
-      <label for="zip">${esc(t('form.zip'))}</label>
-      <input id="zip" name="zip" inputmode="numeric" required placeholder="${esc(t('form.zipPlaceholder'))}" />
+      <label for="secret">${esc(t(`form.secret.${variant}`))}</label>
+      <input id="secret" name="secret" ${SECRET_INPUT_ATTRS[variant]} required placeholder="${esc(t(`form.secretPlaceholder.${variant}`))}" />
       <button type="submit">${esc(t('form.submit'))}</button>
     </form>
     <p class="legal"><a href="?lang=de">DE</a>·<a href="?lang=en">EN</a></p>`,
@@ -231,7 +240,7 @@ export function renderNotFound() {
     t('title.notFound'),
     `
     <h1>${esc(t('notFound.heading'))}</h1>
-    <p class="sub">${esc(t('notFound.text'))}</p>
+    <p class="sub">${esc(t(`notFound.text.${currentLoginVariant()}`))}</p>
     <a class="back" href="${portalPath('/')}">${esc(t('notFound.back'))}</a>`,
   );
 }

@@ -300,6 +300,22 @@ export const f = {
     return [...new Set(paths.map((p) => pick(r, [p])).filter(Boolean))];
   },
 
+  // Alle E-Mail-Adressen des Records (Login-Variante "email"). Gleiche
+  // Adress-Pfade wie allZips — live verifiziert: effectiveAddresses.*.email
+  // und documentAddress.email sind im v3-salesOrder-Response gefüllt.
+  allEmails: (r) => {
+    const paths = [
+      'effectiveAddresses.shipTo.email',
+      'deviatingShipToAddress.email',
+      'effectiveAddresses.soldTo.email',
+      'documentAddress.email',
+      'deliveryAddress.email',
+      'address.email',
+      'email',
+    ];
+    return [...new Set(paths.map((p) => pick(r, [p])).filter(Boolean))];
+  },
+
   // Geplanter Liefertag.
   deliveryDate: (r) =>
     pick(r, ['desiredDeliveryDate', 'deliveryDate', 'estimatedDeliveryDate', 'shippingDate']),

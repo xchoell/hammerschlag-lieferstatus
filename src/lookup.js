@@ -22,6 +22,11 @@ const isCancelledStatus = (s) => /storn|cancel|abgebroch/.test(String(s ?? '').t
 const normZip = (v) => String(v ?? '').trim().toUpperCase().replace(/\s+/g, '');
 const normNum = (v) => String(v ?? '').trim();
 
+// Zweitfaktor je Login-Variante normalisieren (C7). E-Mail case-insensitiv;
+// PLZ und Kundennummer wie gehabt (trim, uppercase, ohne Whitespace).
+const normSecret = (v, variant) =>
+  variant === 'email' ? String(v ?? '').trim().toLowerCase() : normZip(v);
+
 // Reihenfolge der Identifier-Strategien. Jeder Eintrag: [Quelle, v3-Filter-Key].
 // Deckt ab: Auftragsnummer, Bestellnummer (eigene Ref), Internetnummer (Shop),
 // Lieferscheinnummer.
@@ -34,22 +39,26 @@ const STRATEGIES = [
 
 // Haupt-Einstieg. Gibt ein Status-Objekt für die View zurück, oder null.
 // null bedeutet IMMER "generisch nicht gefunden" - egal ob Nummer unbekannt
-// oder PLZ falsch (kein Oracle).
-export async function lookupStatus(rawQuery, rawZip) {
+// oder Zweitfaktor falsch (kein Oracle). `variant` bestimmt den Zweitfaktor
+// (zip|email|customerNumber, C7) — kommt aus den Portal-Settings, NIE vom Client.
+export async function lookupStatus(rawQuery, rawSecret, variant = 'zip') {
   const query = normNum(rawQuery);
-  const zip = normZip(rawZip);
-  if (!query || !zip) return null;
+  const secret = normSecret(rawSecret, variant);
+  if (!query || !secret) return null;
 
-  if (config.useMock) return mockLookup(query, zip);
+  // Der Mock kennt nur die PLZ-Variante (Demo-Daten ohne E-Mail/Kundennummer).
+  if (config.useMock) return mockLookup(query, secret);
 
-  const candidate = await resolveCandidate(query, zip);
+  const candidate = await resolveCandidate(query, secret, variant);
   if (!candidate) return null;
-  return assembleGroup(candidate, zip);
+  // Die Liefer-PLZ verbessert die Detailtiefe der DHL-Abfrage; bei den anderen
+  // Login-Varianten liegt sie nicht vor (Carrier-Check läuft dann ohne).
+  return assembleGroup(candidate, variant === 'zip' ? secret : null);
 }
 
-// Probiert die Strategien durch, prüft den zweiten Faktor (PLZ) serverseitig
+// Probiert die Strategien durch, prüft den zweiten Faktor serverseitig
 // und liefert den ersten Treffer.
-async function resolveCandidate(query, zip) {
+async function resolveCandidate(query, secret, variant) {
   for (const [type, key] of STRATEGIES) {
     let records = [];
     try {
@@ -62,40 +71,47 @@ async function resolveCandidate(query, zip) {
     }
 
     for (const record of records) {
-      const verified = await zipMatches(type, record, zip);
+      const verified = await secretMatches(type, record, secret, variant);
       if (verified) return { type, record };
     }
   }
   return null;
 }
 
-// Zweiter Faktor: PLZ muss zu einer bekannten Adresse des Auftrags passen.
-// Akzeptiert sowohl die Liefer- als auch die Rechnungs-PLZ, damit Aufträge mit
-// abweichender Lieferadresse über die Stamm-PLZ gefunden werden können.
-// Fail-closed: ist nirgends eine PLZ auffindbar, gilt es als nicht verifiziert.
-async function zipMatches(type, record, zip) {
-  const zips = f.allZips(record);
+// Zweiter Faktor: muss zu einem bekannten Wert des Belegs passen (equals-only).
+// zip/email: alle Adressen des Belegs (Liefer- UND Rechnungsadresse), damit
+// Aufträge mit abweichender Lieferadresse über die Stammdaten gefunden werden.
+// customerNumber: die Kundennummer des Belegs.
+// Fail-closed: ist der Wert nirgends auffindbar, gilt es als nicht verifiziert.
+async function secretMatches(type, record, secret, variant) {
+  if (variant === 'customerNumber') {
+    const cn = f.customerNumber(record);
+    return !!cn && normSecret(cn, variant) === secret;
+  }
 
-  // Für Aufträge zusätzlich die PLZ der zugehörigen Lieferscheine prüfen.
-  if (type === 'salesOrder' && zips.length === 0) {
+  const collect = variant === 'email' ? f.allEmails : f.allZips;
+  const values = collect(record);
+
+  // Für Aufträge zusätzlich die Werte der zugehörigen Lieferscheine prüfen.
+  if (type === 'salesOrder' && values.length === 0) {
     try {
       const notes = await listDeliveryNotesForOrder(f.id(record));
       for (const n of notes) {
-        zips.push(...f.allZips(n));
+        values.push(...collect(n));
       }
     } catch {
-      /* ignorieren - dann bleibt zips ggf. leer */
+      /* ignorieren - dann bleibt values ggf. leer */
     }
   }
 
-  if (zips.length === 0) {
+  if (values.length === 0) {
     console.warn(
-      '[lookup] Keine PLZ im Response gefunden - Feld-Mapping prüfen (npm run probe). ' +
-        'Treffer wird sicherheitshalber verworfen.',
+      `[lookup] Kein Wert für Login-Variante "${variant}" im Response gefunden - ` +
+        'Feld-Mapping prüfen (npm run probe). Treffer wird sicherheitshalber verworfen.',
     );
     return false;
   }
-  return zips.some((z) => normZip(z) === zip);
+  return values.some((v) => normSecret(v, variant) === secret);
 }
 
 // Baut aus dem Treffer die komplette Auftragsgruppe zusammen: den getroffenen
