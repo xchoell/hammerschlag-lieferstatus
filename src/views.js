@@ -483,10 +483,21 @@ export function renderRetoure(data, token, prefill = {}) {
       .join('')}`
     : '';
 
-  // Formular nur, wenn noch etwas retournierbar ist UND eine Versandart konfiguriert ist.
+  // Formular nur, wenn noch etwas retournierbar ist, eine Versandart
+  // konfiguriert ist UND das C1-Zeitfenster offen ist (Frist/Sperre/Limit).
+  // Bestehende Retouren + Labels oben bleiben in jedem Fall sichtbar.
+  const blocked = data.window?.blocked || null;
   const hasReturnable = data.items.some((i) => i.remaining > 0);
-  const canReturn = hasReturnable && !!data.shippingMethod;
-  const note = `<p class="sub">${esc(!hasReturnable ? t('retoure.allReturned') : t('retoure.notPossible'))}</p>`;
+  const canReturn = hasReturnable && !!data.shippingMethod && !blocked;
+  const noteText = blocked
+    ? t(
+        { deadline: 'retoure.windowExpired', orderAge: 'retoure.tooFresh', multiReturn: 'retoure.singleLimit' }[blocked],
+        { h: data.window?.limitHours || 0 },
+      )
+    : !hasReturnable
+      ? t('retoure.allReturned')
+      : t('retoure.notPossible');
+  const note = `<p class="sub">${esc(noteText)}</p>`;
   const formOrNote = canReturn
     ? `<p class="sub">${existing.length ? esc(t('retoure.chooseMore')) : ''}${esc(t('retoure.chooseIntro'))}</p>
     <form method="post" action="${portalPath('/retoure')}">

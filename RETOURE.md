@@ -232,6 +232,28 @@ Startseite, Lieferstatus UND Retoure laufen komplett gebrandet unter
 - Logo bleibt vorerst global (B0: Logo-Upload lebt im Portal), Login-Variante
   `customerNumber` ist bisher nur Setting (Portal-Login = C7).
 
+### C1: Zeitfenster-Gates (umgesetzt + E2E-verifiziert 2026-07-04)
+
+`assessReturnWindow` (returns.js) prüft pro Auftrag gegen die Xentral-Settings —
+Reihenfolge Frist → Bestelldatum-Sperre → Mehrfach-Limit:
+
+- **Rückgabefrist** (`returnDeadlineDays`, 0 = aus): Basis = spätester
+  Versandzeitpunkt der Sendungen (deadlineBasis aktuell nur „Versanddatum");
+  ohne bekanntes Versanddatum konservativer Fallback aufs Auftragsdatum.
+- **Bestelldatum-Sperre** (`orderDateLimitHours`, 0 = aus): Mindestwartezeit
+  nach Auftragsanlage.
+- **Mehrfach-Limit** (`shouldLimitToSingleReturn`): max. eine (nicht stornierte)
+  Retoure pro Auftrag.
+
+Durchsetzung: `/retoure` zeigt bei geschlossenem Fenster **Hinweis statt
+Formular** (bestehende Retouren + Label-Downloads bleiben sichtbar — deshalb
+bleibt auch der Button auf der Statusseite), POST lehnt hart mit 403 ab.
+Lokaler Fallback (keine Remote-Settings) kennt keine Fristen → Fenster offen.
+E2E gegen `/p/standard-1` verifiziert: offen → Formular; Frist 1 Tag →
+„Frist abgelaufen"; Sperre 999 h → „erst 999 Stunden nach der Bestellung";
+Limit + bestehende Retoure → „eine weitere ist nicht möglich", Formular weg,
+POST jeweils 403.
+
 ## Bewusst noch offen (Backlog)
 
 - **Versandart-Regeln (Punkt 1)**: Regel-System im Admin (Kriterium Gewicht/Größe

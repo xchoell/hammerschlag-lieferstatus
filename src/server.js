@@ -118,6 +118,9 @@ customer.post('/status', lookupLimiter, async (req, res) => {
     // Gates unabhängig erneut prüfen kann.
     if (status.primarySalesOrderId) {
       const rs = portal ? portal.settings : await getReturnsSettings(status.primaryProjectId);
+      // C1-Zeitfenster (Frist/Sperre/Mehrfach-Limit) blendet den Button
+      // bewusst NICHT aus: /retoure bleibt erreichbar (Labels bestehender
+      // Retouren!) und zeigt dort Hinweis statt Formular; POST lehnt hart ab.
       if (rs.active && (!rs.onlyDelivered || status.primaryDelivered)) {
         status.retoureToken = orderToken(
           status.primarySalesOrderId,
@@ -306,6 +309,14 @@ customer.post('/retoure', retoureLimiter, async (req, res) => {
   const salesOrderId = verified.salesOrderId;
   try {
     const data = await loadReturnable(salesOrderId, currentLocale(), settings); // erneut laden -> Mengen serverseitig validieren
+    // C1-Zeitfenster: hartes Server-Gate — Anlegen nur im offenen Fenster
+    // (GET rendert bei blocked bereits Hinweis statt Formular).
+    if (data?.window?.blocked) {
+      const key = { deadline: 'retoure.windowExpired', orderAge: 'retoure.tooFresh', multiReturn: 'retoure.singleLimit' }[
+        data.window.blocked
+      ];
+      return res.status(403).send(renderRetoureError(t(key, { h: settings.raw?.orderDateLimitHours || 0 })));
+    }
     // Auswahl = für die Position wurde ein Grund gewählt (kein JS nötig).
     // Menge gegen die bestellte/gelieferte Menge clampen (keine Over-Returns).
     const selections = (data?.items || [])

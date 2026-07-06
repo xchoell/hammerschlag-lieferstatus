@@ -10,6 +10,9 @@ import {
   getReturnDocument,
   listReturnsForSalesOrder,
   getReturn,
+  listDeliveryNotesForOrder,
+  getDeliveryNoteShipments,
+  f,
 } from './xentral.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -117,6 +120,70 @@ async function loadReturnsForOrder(salesOrderId) {
   return { byPosition, existing };
 }
 
+// ── C1: Retoure-Zeitfenster (Frist, Bestelldatum-Sperre, Mehrfach-Limit) ─────
+
+const toDate = (v) => {
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+// Prüft das Retoure-Fenster gegen die Xentral-Settings des Projekts.
+// Rückgabe: { blocked: null | 'deadline' | 'orderAge' | 'multiReturn', deadline }.
+// Ohne Remote-Settings (lokaler Fallback) gibt es keine Fristen -> offen.
+// deadlineBasis ist aktuell nur 'shipping' (Produktentscheid 2026-07-03);
+// ohne bekanntes Versanddatum fällt die Frist aufs Auftragsdatum zurück
+// (konservativ: Auftragsdatum <= Versanddatum, Frist endet also nie später).
+export function assessReturnWindow({ orderDate, shippingDate, existingCount = 0 }, settings, now = new Date()) {
+  const raw = settings?.raw;
+  if (!raw) return { blocked: null, deadline: null, limitHours: 0 };
+
+  const limitHours = Number(raw.orderDateLimitHours) || 0;
+
+  const days = Number(raw.returnDeadlineDays) || 0;
+  if (days > 0) {
+    const basis = toDate(shippingDate) || toDate(orderDate);
+    if (basis) {
+      const deadline = new Date(basis.getTime() + days * 86_400_000);
+      if (now > deadline) return { blocked: 'deadline', deadline, limitHours };
+    }
+  }
+
+  if (limitHours > 0) {
+    const ordered = toDate(orderDate);
+    if (ordered) {
+      const readyAt = new Date(ordered.getTime() + limitHours * 3_600_000);
+      if (now < readyAt) return { blocked: 'orderAge', deadline: readyAt, limitHours };
+    }
+  }
+
+  if (raw.shouldLimitToSingleReturn === true && existingCount > 0) {
+    return { blocked: 'multiReturn', deadline: null, limitHours };
+  }
+
+  return { blocked: null, deadline: null, limitHours };
+}
+
+// Spätester Versandzeitpunkt des Auftrags (Fristbasis). null = nichts bekannt.
+async function latestShipmentDate(salesOrderId) {
+  try {
+    const notes = await listDeliveryNotesForOrder(salesOrderId);
+    let latest = null;
+    for (const note of notes) {
+      const shipments = await getDeliveryNoteShipments(note.id).catch(() => []);
+      for (const s of shipments) {
+        const at = toDate(f.shippedAt(s));
+        if (at && (!latest || at > latest)) latest = at;
+      }
+    }
+    return latest;
+  } catch (err) {
+    console.warn(`[returns] Versanddatum für ${salesOrderId} nicht ermittelbar: ${err.status || err.message}`);
+    return null;
+  }
+}
+
 // Retournierbare Positionen + Gründe + Retouren-Versandarten für einen Auftrag.
 // locale steuert die Sprache der Rücksendegründe (Fallback DE, dann alle).
 // settings = effektive Retouren-Settings (aus Xentral bzw. lokaler Fallback,
@@ -175,6 +242,17 @@ export async function loadReturnable(salesOrderId, locale = 'de', settings = nul
     ? shippingMethods.find((m) => String(m.id) === configuredId) || null
     : null;
 
+  // C1-Zeitfenster: Versanddatum nur nachladen, wenn eine Frist konfiguriert ist.
+  const needsShippingDate = Number(settings?.raw?.returnDeadlineDays) > 0;
+  const window = assessReturnWindow(
+    {
+      orderDate: pick(order, ['documentDate', 'orderDate', 'date', 'createdAt']),
+      shippingDate: needsShippingDate ? await latestShipmentDate(salesOrderId) : null,
+      existingCount: orderReturns.existing.length,
+    },
+    settings,
+  );
+
   return {
     salesOrderId: String(salesOrderId),
     orderNumber: pick(order, ['documentNumber', 'number', 'belegnr']) || String(salesOrderId),
@@ -183,6 +261,7 @@ export async function loadReturnable(salesOrderId, locale = 'de', settings = nul
     shippingMethod: selected ? { id: String(selected.id), designation: selected.designation } : null,
     existingReturns: orderReturns.existing,
     showPrices: settings ? !!settings.showPrices : !!config.returns?.showPrices,
+    window,
   };
 }
 
