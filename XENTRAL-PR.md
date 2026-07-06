@@ -1,6 +1,6 @@
 # PR-Entwurf: ReturnsPortalSetting Business Entity (Xentral-Core)
 
-> Branch `retourenportal-settings` im Worktree `~/work/repos/retourenportal-settings-xentral`
+> Branch `SUP-0-retourenportal-settings` im Worktree `~/work/repos/retourenportal-settings-xentral`
 > (Basis main 6feaa400856, 4 Commits). **Noch NICHT gepusht — Push/PR erst nach GO.**
 > Stand: 2026-07-03, alle Checks grün.
 
