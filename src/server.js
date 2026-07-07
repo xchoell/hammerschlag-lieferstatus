@@ -331,19 +331,20 @@ customer.post('/retoure', retoureLimiter, async (req, res) => {
             );
       return res.status(403).send(renderRetoureError(message));
     }
-    // Auswahl = für die Position wurde ein Grund gewählt (kein JS nötig).
-    // Menge gegen die bestellte/gelieferte Menge clampen (keine Over-Returns).
-    const selections = (data?.items || [])
-      .map((item) => ({
-        posId: item.id,
-        // gegen die RESTmenge clampen: Bestellmenge − bereits retourniert.
-        // Verhindert Mehrfach-/Über-Retoure auch bei manipuliertem POST.
-        quantity: Math.max(0, Math.min(Number(req.body[`qty_${item.id}`]) || item.remaining, item.remaining)),
-        reasonId: req.body[`reason_${item.id}`] || '',
-      }))
-      .filter((s) => s.reasonId && s.quantity > 0);
-    if (!selections.some((s) => s.quantity > 0 && s.reasonId))
-      return res.send(renderRetoureError(t('err.selectOne')));
+    // Auswahl = Menge ≥ 1 (Standard 0 = Artikel bleibt da, kein JS nötig).
+    // Menge gegen die RESTmenge clampen: Bestellmenge − bereits retourniert.
+    // Verhindert Mehrfach-/Über-Retoure auch bei manipuliertem POST.
+    const rows = (data?.items || []).map((item) => ({
+      posId: item.id,
+      quantity: Math.max(0, Math.min(Number(req.body[`qty_${item.id}`]) || 0, item.remaining)),
+      reasonId: req.body[`reason_${item.id}`] || '',
+    }));
+    // Menge gewählt, aber kein Grund -> zurück ins Formular (Eingaben bleiben).
+    if (rows.some((s) => s.quantity > 0 && !s.reasonId))
+      return res.send(renderRetoure(data, req.body.t, req.body, t('err.reasonMissing')));
+    const selections = rows.filter((s) => s.quantity > 0 && s.reasonId);
+    if (selections.length === 0)
+      return res.send(renderRetoure(data, req.body.t, req.body, t('err.selectOne')));
 
     // "Ändern" aus der Zusammenfassung: zurück zur Auswahl, Werte erhalten.
     if (req.body.edit) return res.send(renderRetoure(data, req.body.t, req.body));

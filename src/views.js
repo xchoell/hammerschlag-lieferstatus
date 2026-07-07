@@ -414,11 +414,13 @@ function renderGroup(result, parts) {
   );
 }
 
-// Schritt 1: Artikelauswahl. Ein Artikel gilt als ausgewählt, sobald ein Grund
-// gewählt ist - kein Client-JS nötig (CSP erlaubt keins).
+// Schritt 1: Artikelauswahl. Ein Artikel gilt als ausgewählt, sobald die
+// MENGE ≥ 1 ist (Standard 0 = bleibt da); der Grund ist für ausgewählte
+// Artikel Pflicht - kein Client-JS nötig (CSP erlaubt keins).
 // prefill: rohe Formularwerte (qty_<id>/reason_<id>) für den "Ändern"-Rücksprung
 // aus der Bestätigungsseite; nur bekannte Gründe/plausible Mengen werden übernommen.
-export function renderRetoure(data, token, prefill = {}) {
+// error: Hinweis über dem Formular (z. B. fehlender Grund) - Eingaben bleiben erhalten.
+export function renderRetoure(data, token, prefill = {}, error = null) {
   const reasonOptionsFor = (itemId) => {
     const selected = String(prefill[`reason_${itemId}`] ?? '');
     return data.reasons
@@ -452,7 +454,8 @@ export function renderRetoure(data, token, prefill = {}) {
           ? `${esc(t('retoure.orderedDetail', { n: it.quantity, r: it.returned }))} <b>${esc(it.remaining)}</b>`
           : esc(t('retoure.ordered', { n: it.quantity }));
       const preQty = Number(prefill[`qty_${it.id}`]);
-      const qtyValue = Number.isFinite(preQty) && preQty >= 1 && preQty <= it.remaining ? preQty : it.remaining;
+      // Standard 0: nichts geht zurück, bis der Kunde aktiv eine Menge wählt.
+      const qtyValue = Number.isFinite(preQty) && preQty >= 0 && preQty <= it.remaining ? preQty : 0;
       return `
     <div class="part" style="padding:12px 14px;">
       ${head}
@@ -460,12 +463,12 @@ export function renderRetoure(data, token, prefill = {}) {
       <div style="display:flex;gap:10px;margin-top:10px;">
         <div style="flex:0 0 84px;">
           <label for="qty_${esc(it.id)}" style="margin:0 0 4px;">${esc(t('retoure.qty'))}</label>
-          <input id="qty_${esc(it.id)}" name="qty_${esc(it.id)}" type="number" min="1" max="${esc(it.remaining)}" value="${esc(qtyValue)}" />
+          <input id="qty_${esc(it.id)}" name="qty_${esc(it.id)}" type="number" min="0" max="${esc(it.remaining)}" value="${esc(qtyValue)}" />
         </div>
         <div style="flex:1;">
           <label for="reason_${esc(it.id)}" style="margin:0 0 4px;">${esc(t('retoure.reason'))}</label>
           <select id="reason_${esc(it.id)}" name="reason_${esc(it.id)}">
-            <option value="">${esc(t('retoure.noReturn'))}</option>
+            <option value="">${esc(t('retoure.chooseReason'))}</option>
             ${reasonOptionsFor(it.id)}
           </select>
         </div>
@@ -519,6 +522,7 @@ export function renderRetoure(data, token, prefill = {}) {
   const note = `<p class="sub">${esc(noteText)}</p>`;
   const formOrNote = canReturn
     ? `<p class="sub">${existing.length ? esc(t('retoure.chooseMore')) : ''}${esc(t('retoure.chooseIntro'))}</p>
+    ${error ? `<div class="err">${esc(error)}</div>` : ''}
     <form method="post" action="${portalPath('/retoure')}">
       <input type="hidden" name="t" value="${esc(token)}" />
       ${itemsHtml}
