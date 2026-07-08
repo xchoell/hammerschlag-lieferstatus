@@ -1,5 +1,25 @@
 # Notizen (Arbeitsstand, 2026-07-07)
 
+## Nachtrag 2026-07-07 (2)
+
+- **Statistiken über Analytics**: Retouren-Auswertung (Volumen, Gründe —
+  vgl. Top-25 Nr. 24 Gründe-Reporting) soll über die Xentral-**Analytics-
+  Plattform** laufen statt über ein eigenes Portal-Reporting — die Daten
+  liegen ja strukturiert in `retoure`/`retoure_position`.
+- **Anzuzeigende Retourengründe definierbar machen**: Im Portal sollen nur
+  ausgewählte Gründe erscheinen. Hebel existiert schon im Datenmodell:
+  `returnReason` hat ein `isHidden`-Flag — prüfen, ob v1 `returnReasons`
+  das respektiert/liefert; sonst Auswahl-Feld (Multi-Select) an unserer
+  Settings-Entity.
+- **Mit Fulya besprechen**: Wie verhält sich ein „Nachbau" des
+  Retourenportals hier (Produkt-/Design-Sicht, Abgrenzung zum alten Portal)?
+- **Ziel-Versanddienstleister** (Soll-Liste): **DHL Retoure** (✅ via SUP-87)
+  / **Shipcloud** (⚠️ kein Xentral-Retourenlabel-Code — Klärung nötig, ob
+  Anbindung neu entsteht oder Kunden via Sendcloud/CISC migrieren) /
+  **Sendcloud** (SUP-87-Follow-up, Spec §11a) / **Swiss Post** (Code nur
+  UI-gekoppelt, Port auf ReturnLabelProcessor nötig) / **GLS** (via
+  CISC-Gateway, D2-Klärung mit Shipping-Team).
+
 Lose Punkte aus der Review-Session — noch nicht in TASKS.md/PLAN.md überführt.
 Rückfragen vom 2026-07-07 sind eingearbeitet; offen ist nur noch ❓ New Relic.
 
