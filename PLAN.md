@@ -1,6 +1,6 @@
 # Retourenportal — Zielbild & Umsetzungsplan
 
-Stand **2026-07-06**. Quellen: Xentral-Handbuch (help.xentral.com 9726301921692 u. a.),
+Stand **2026-07-07**. Quellen: Xentral-Handbuch (help.xentral.com 9726301921692 u. a.),
 Jira-Projekt `RETURN` (54 offene Issues), Zendesk-Auswertung (100 jüngste von 1.255
 Treffern zu „Retourenportal", Feb–Jul 2026), Code-Analyse Xentral-Monolith
 (Worktree `retourenportal-settings-xentral`, Branch `SUP-0-retourenportal-settings`).
@@ -24,10 +24,16 @@ am 2026-07-06 lokal end-to-end bewiesen (echtes DHL-Sandbox-Label-PDF bis in
 die Portal-UI, Response `{fileId, trackingNumber, trackingLink}` passt 1:1 auf
 unseren bestehenden Download-Pfad). Noch nicht in main released.
 
+**Seit 2026-07-06 dazugekommen:** Portal-Autoaufruf der Label-Route ✅
+(Label sofort auf Bestätigungsseite + Mail-Anhang; dabei C2-Versandart-
+Override-Fix) · Retoure-Formular-UX ✅ (Menge default 0, Auswahl über Menge,
+Inline-Fehler) · ⚠️ offener Bug-Verdacht: Speichern in der Xentral-Settings-UI
+löscht die Retourenbedingungen (lineItems) — 2× beobachtet, Repro steht aus (§5 Nr. 3).
+
 **Übrig für volle Parität:** siehe §1a — im Kern: Auto-Gutschrift (API-Lücke →
 D1), mehrere Rücksendeadressen (C5), Carrier-Ausbau über DHL hinaus
-(SUP-87-Follow-ups), Portal-Autoaufruf der Label-Route nach Release,
-konfigurierbare Mail-/Infotexte, Logo pro Projekt, weitere Sprachen.
+(SUP-87-Follow-ups), konfigurierbare Mail-/Infotexte, Logo pro Projekt,
+weitere Sprachen. **Hosting-Optionen: §7. Top-25-Kundenwünsche: §8.**
 
 ---
 
@@ -213,10 +219,18 @@ Kein iFrame, keine Zweitpflege, kein Zweit-Login.
    CISC-/Shipping-Team (D2-Frage offen).
 5. **Settings-Migration:** Alt-Portal-Konfiguration liegt im externen Dienst —
    pro Kunde Neukonfiguration (kein Export bekannt).
-6. **Betrieb:** eigenes Hosting (VPS) → Monitoring/Alerts einplanen
+6. **Betrieb:** eigenes Hosting → §7; Monitoring/Alerts einplanen
    (Zendesk-Signal Stabilität).
-7. Kleinigkeiten: JQL `project = "RETURN"` quoten; ~~Login-Paritäts-Entscheid~~
-   erledigt (C7: pro Portal wählbar).
+7. **⚠️ Bug-Verdacht Settings-UI:** Speichern der Settings-Zeile in der
+   Xentral-UI löscht offenbar die komplette Bedingungen-Collection
+   (2026-07-06 ganze Zeile + Bedingungen weg, 2026-07-07 12:10 Bedingungen
+   weg bei Root-Update). API-PATCH ohne `lineItems` löscht nachweislich
+   NICHTS → Verdacht EntityBase-Frontend (destruktiver lineItems-Payload
+   beim Root-Save). Repro im Browser + Fix VOR dem Xentral-PR-Review —
+   das wäre exakt die Settings-Verlust-Bugklasse, die Option B beseitigen soll.
+8. Kleinigkeiten: JQL `project = "RETURN"` quoten; nach Branch-Wechsel/Merge
+   im Worktree `php artisan meta:cache` (sonst „Missing section label" im
+   Backend); ~~Login-Paritäts-Entscheid~~ erledigt (C7: pro Portal wählbar).
 
 ## 6. Carrier-Strategie / GLS-Frage
 
@@ -235,3 +249,67 @@ Retoure); implementiert ist bisher der DHL-Assembler, sendcloud/ups_oauth/cisc
 sind laut Spec §11a als weitere Assembler vorgesehen, nicht unterstützte Module
 antworten 409. Sobald der CISC-Assembler existiert, deckt die Route damit auch
 GLS/DPD/Hermes ab — ohne Änderung am Portal.
+
+## 7. Hosting des Portal-Frontends
+
+Rahmenbedingungen (gelten für jede Option): Node ≥ 20, zustandsarm — einzige
+Persistenz ist `data/` (settings.json-Overrides + Logo, wenige KB); ausgehend
+HTTPS zur Xentral-Instanz + DHL-Tracking-API; eingehend nur 443; Secrets
+(PAT, DHL-Key, Admin-Kennwort) ausschließlich server-seitig als `.env`.
+Ein Portal-Prozess bedient **eine Xentral-Instanz** (ein PAT), aber beliebig
+viele Projekte über `/p/<slug>` — Multi-PROJEKT ja, Multi-INSTANZ nein.
+
+| Option | Beschreibung | Bewertung |
+|---|---|---|
+| **A — VPS pro Kunde (dokumentierter Ist-Weg)** | `DEPLOY.md`: Git-Checkout, Node als systemd-Dienst, Caddy als Reverse-Proxy mit Auto-Let's-Encrypt; Kunden-Domain (z. B. retoure.kunde.de) per DNS-A-Record | ✅ Heute fertig beschrieben + erprobt; volle Isolation pro Kunde. ⚠️ Betriebsaufwand skaliert mit Kundenzahl (Updates/Monitoring × N) |
+| **B — Container auf Xentral-Infrastruktur** | Portal dockerisieren, ein Deployment pro Kundeninstanz im Fleet-Cluster (k8s); Kunden-Domains via CNAME auf Ingress; Secrets im Cluster-Secret-Store; zentrales Rollout/Monitoring (New Relic wie Fleet) | 🎯 Zielbild für den Rollout in Breite: EIN Update-Pfad, zentrales Monitoring (Stabilitäts-Signal!). Benötigt Infra-Team-Buy-in; Dockerfile ist trivial (stateless Node) |
+| **C — PaaS (Render/Fly.io/Railway …)** | Ein Service pro Kunde, Custom Domain, Auto-TLS | Schnellster Start ohne eigene Infra; ⚠️ Datenfluss (Auftrags-/Adressdaten) über Dritt-Cloud → AVV/DSGVO prüfen; laufende Kosten pro Service |
+| **D — Multi-Tenant-Umbau** | Ein Deployment für VIELE Xentral-Instanzen (Instanz-Auflösung per Domain, PAT-Store statt einzelner .env) | Minimalster Betrieb, ABER echter Umbau (instanz-scoped Config/Caches/Rate-Limits, Secret-Verwaltung, noisy neighbour); erst ab größerer Kundenzahl sinnvoll |
+
+**Empfehlung:** Pilot + erste Kunden auf **A** (funktioniert heute, DEPLOY.md
+fertig). Parallel **B** als Zielbild vorbereiten (Dockerfile + Helm/Manifest,
+Gespräch mit Infra) — dorthin migrieren, bevor die Kundenzahl den
+VPS-Handbetrieb übersteigt. **D** nur bei strategischem Bedarf; **C** als
+Zwischenlösung, falls B sich verzögert und ein Kunde nicht warten kann.
+
+## 8. Top 25 Kunden-Feature-Requests (konsolidiert)
+
+Quellen: Jira `RETURN` (54 offene Issues) + Zendesk-Auswertung (100 jüngste
+von 1.255 „Retourenportal"-Treffern, Feb–Jul 2026). Rang = Signalstärke
+(Anzahl Tickets/Kunden), indikativ. Status: ✅ im neuen Portal · 🔶 teilweise · ❌ offen.
+
+| # | Feature-Request | Quelle(n) | Status neues Portal |
+|---|---|---|---|
+| 1 | Retourenlabel mit GLS | ZD 291191 u. a. | ❌ via CISC-Assembler (SUP-87-Follow-up + D2) |
+| 2 | Retourenlabel mit DPD | ZD 291998 u. a. | ❌ via CISC-Assembler |
+| 3 | Retourenlabel mit Hermes | ZD 293451 | ❌ via CISC-Assembler |
+| 4 | Retourenlabel mit Sendcloud | ZD 296109 | ❌ SUP-87-Follow-up (Spec §11a) |
+| 5 | Retourenlabel mit DHL Standard/Express | ZD 300129 | 🔶 DHL Retoure ✅; Express offen |
+| 6 | Auto-Gutschrift bei Retoure | RETURN-208, ZD 298037/293069 | ❌ API-Lücke → D1 `createFromReturnOrder` |
+| 7 | Auto-Erstattung end-to-end | ZD 298037 | ❌ folgt nach Nr. 6 |
+| 8 | Mehrere/editierbare Rücksendeadressen | RETURN-83/170, ZD 294021/293094 | ❌ C5 |
+| 9 | Versandkosten/Rabatte im Portal ausblenden | ZD 291802/294664/292494 | ❌ P5 |
+| 10 | Mehr Sprachen im Kunden-Frontend | ZD 301345/296124/292191 | 🔶 DE/EN ✅, weitere offen |
+| 11 | B2B/Firmenkunden ausschließen | ZD 297242/294975 | ✅ C2-Bedingung (Kundenart) |
+| 12 | Bestimmte Artikel/SKUs ausschließen | ZD 294018 | ✅ C2-Bedingung (Artikelnr/Präfix) |
+| 13 | Kombinierbare Retourenbedingungen | RETURN-212 | ✅ C2-Engine |
+| 14 | Mail-/Textvorlagen gestalten (HTML, Logo) | RETURN-251/197, ZD 293363/292775 | ❌ feste i18n-Vorlage, konfigurierbar offen |
+| 15 | Freitext/Infotexte auf Portal-Startseite | RETURN-80, ZD 295821 | ❌ offen |
+| 16 | Rückgabefrist ab Liefer-/Versanddatum | RETURN-194, ZD 294254 | 🔶 Versanddatum ✅, Lieferdatum offen |
+| 17 | Absender-Mailadresse konfigurierbar | RETURN-216 | ✅ emailAccountId pro Projekt (C4) |
+| 18 | Gründe synchron Xentral ↔ Portal | RETURN-168 | ✅ by design (live aus Xentral) |
+| 19 | Menge editierbar / sinnvoll vorbelegt | RETURN-136/137 | ✅ (seit 2026-07-07: default 0, aktiv wählbar) |
+| 20 | Selbstzahler-Retoure (Kunde zahlt Label) | RETURN-204, ZD 294933 | ❌ P5 |
+| 21 | Auftragsnummer als Label-Referenz | ZD 294921 | ❌ P5 (SUP-87-Config `labelReference` als Hebel) |
+| 22 | Reject-/Genehmigungs-Workflow | ZD 291803 | ❌ P5 |
+| 23 | Doppelretouren-Sperre | ZD 300931 | ✅ Restmengen + Mehrfach-Limit |
+| 24 | Gründe-Reporting/Auswertung | ZD 292757 | ❌ P5 (Daten liegen strukturiert in Xentral) |
+| 25 | Webhook bei Retoure-Freigabe | ZD 302076 | ❌ P5 |
+
+Knapp außerhalb der Top 25: USA als Rücksendeland inkl. States (RETURN-138),
+Retoure ohne Bestellnummer (ZD 294427 — bewusst NICHT geplant, Auth-Konzept),
+Marktplatz-Retouren Tradebyte/Zalando (ZD 296189/297647), Druck-Flexibilität
+(ZD 292461/297860 — WMS-Thema, nicht Portal), Login-Auftragsfilter
+(RETURN-131), Stornoanträge übers Portal (RETURN-19, out-of-scope v1),
+Label in neuem Tab öffnen (ZD 296663 — ✅ haben wir), MHD/Charge-Übernahme
+beim Wareneingang (ZD 298242 — Core, nicht Portal).
