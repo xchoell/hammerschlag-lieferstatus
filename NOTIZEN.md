@@ -1,5 +1,30 @@
 # Notizen (Arbeitsstand, 2026-07-07)
 
+## Fehlende Punkte: Carrier + Hosting (konsolidiert 2026-07-07)
+
+**Carrier — Muster:** pro Anbieter braucht es (1) Assembler im SUP-87-Muster
+(Spec §11a, API-Team), (2) ReturnLabelProcessor im Monolithen (existiert für
+sendcloud/dhlreturn/ups_oauth/cisc), (3) instanzseitig Versandart mit
+Credentials + support_returns. Portal selbst: keine Änderung nötig.
+
+| Carrier | Fehlt | Einordnung |
+|---|---|---|
+| DHL Retoure | ✅ fertig (SUP-87) | nur Release |
+| Sendcloud | Assembler | klein, Follow-up |
+| UPS | Assembler | klein, Follow-up |
+| GLS/DPD/Hermes | CISC-Assembler + D2-Klärung (Shipping-Team) | mittel, D2 OFFEN |
+| Swiss Post | Return-Processor-Port (Code UI-gekoppelt) | größer |
+| Shipcloud | kein Code — Entscheid bauen vs. migrieren | Produkt-Runde |
+
+Nächste Schritte: D2 stellen · SUP-87-Team nach §11a-Timeline fragen ·
+Shipcloud-Entscheid (Fulya-Runde) · alles ins Jira-Paket bündeln
+(+ createFromReturnOrder + Protokolleintrag).
+
+**Hosting — offene Schritte:** Grundsatz-Entscheid A (VPS-Pilot, DEPLOY.md
+fertig) vs. Zielbild B (Container auf Xentral-Infra) · für B: Dockerfile +
+Manifest, Infra-Buy-in, Secrets, Ingress/CNAME · Monitoring: NR-Anbindung
+(❓ APM vs. Logs) + healthz-Alerting · E2-Checkliste pro Kunde in DEPLOY.md.
+
 ## Nachtrag 2026-07-07 (2)
 
 - **Statistiken über Analytics**: Retouren-Auswertung (Volumen, Gründe —
