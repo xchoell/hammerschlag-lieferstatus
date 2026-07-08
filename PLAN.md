@@ -110,7 +110,14 @@ Reihenfolge = Empfehlung. Nichts davon blockiert den Pilot-Rollout mit DHL.
 6. **Konfigurierbare Texte**: Bestätigungsmail-Vorlage, Infotexte,
    „Service kontaktieren"-Freitext pro Projekt (heute feste i18n-Texte).
 7. **Frist-Basis** Bestell-/Lieferdatum zusätzlich zu Versanddatum
-   (`deadlineBasis`-Enum erweitern; RETURN-194).
+   (`deadlineBasis`-Enum erweitern; RETURN-194). Achtung Parität: das ALTE
+   Portal rechnete ab Auftragsanlage — auch diese Basis fehlt uns bisher.
+7a. **Bedingungs-Effekt „Kein Paketlabel"** (Handbuch-Abgleich 2026-07-07):
+   Retoure zulassen, aber bewusst ohne Label (Kunde frankiert selbst) — als
+   vierten Effekt `skipLabel` in der C2-Engine nachrüsten (trivial: Label-
+   Autoaufruf überspringen + Hinweistext). Dazu „Service kontaktieren" als
+   expliziten Effekt mit eigenem Textbaustein prüfen (heute nur angenähert
+   über blockReturn + customerNote + serviceEmail).
 8. **Logo pro Projekt** in Xentral (heute globaler Portal-Upload).
 9. **Weitere Sprachen** über DE/EN hinaus (Zendesk-Thema 3; i18n-Katalog
    erweiterbar, Gründe kommen sprachgefiltert aus Xentral).
