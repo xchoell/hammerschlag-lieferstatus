@@ -7,14 +7,19 @@
 sendcloud/dhlreturn/ups_oauth/cisc), (3) instanzseitig Versandart mit
 Credentials + support_returns. Portal selbst: keine Änderung nötig.
 
-| Carrier | Fehlt | Einordnung |
+| Carrier | Fehlt | „Einfach erweiterbar?" (Code-Review 2026-07-07) |
 |---|---|---|
-| DHL Retoure | ✅ fertig (SUP-87) | nur Release |
-| Sendcloud | Assembler | klein, Follow-up |
-| UPS | Assembler | klein, Follow-up |
-| GLS/DPD/Hermes | CISC-Assembler + D2-Klärung (Shipping-Team) | mittel, D2 OFFEN |
-| Swiss Post | Return-Processor-Port (Code UI-gekoppelt) | größer |
-| Shipcloud | kein Code — Entscheid bauen vs. migrieren | Produkt-Runde |
+| DHL Retoure | ✅ fertig (SUP-87) | — (nur Release) |
+| Sendcloud | Assembler | **JA, einfach**: MetaData braucht `product` — Auto-Dispatch-Pfad nutzt heute schon `einstellungen['versandfirma']` aus der Versandart-Config (sendcloud.php:318); Assembler = gleiche Machart wie DHL (Config lesen). invoiceNumber ableitbar, Versicherung/Zoll default null |
+| UPS | Assembler | **einfach–mittel**: MetaData braucht `deliveryNoteId` → ableitbar (Retoure→Auftrag→letzter LS; Edge-Case „Retoure ohne LS" sauber 422). Zoll-/COD-Felder erst mal Default (internationale Retouren ausklammern) |
+| GLS/DPD/Hermes (CISC) | CISC-Assembler + D2 | **Architektur einfach**: UI übergibt `dropOffLocationData` schon heute LEER (cisc.php:124), labelOptions aus Config ableitbar. Risiko liegt NICHT im Code, sondern extern: unterstützt das CISC-Backend die Carrier downstream für Returns? (D2 offen) |
+| Swiss Post | Return-Processor-Port | **NEIN**: kein ReturnLabelProcessor, Label-Code UI-gekoppelt (postch.php) — erst Port, dann Assembler; eigenes Arbeitspaket |
+| Shipcloud | kein Code | **NEIN**: Neubau (Processor + Assembler) — oder Produktentscheid Migration zu Sendcloud/CISC |
+
+Gemeinsamer Zusatzaufwand für Sendcloud/UPS/CISC (einmalig lösbar): Anders
+als DHL (EmptyValidAddress) brauchen diese Prozessoren die **Kundenadresse**
+im Command — der Assembler muss sie aus Retoure/Auftrag ableiten (Daten
+liegen am Beleg; eine gemeinsame Helper-Query reicht für alle drei).
 
 Nächste Schritte: D2 stellen · SUP-87-Team nach §11a-Timeline fragen ·
 Shipcloud-Entscheid (Fulya-Runde) · alles ins Jira-Paket bündeln
