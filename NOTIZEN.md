@@ -60,13 +60,18 @@ Rückfragen vom 2026-07-07 sind eingearbeitet; offen ist nur noch ❓ New Relic.
      (Kandidaten: Versandart, urlSlug — heute nullable)?
   2. Portal-Kundenformular: Pflichtfeld-Verhalten prüfen (Grund ist seit dem
      Mengen-Umbau Pflicht für gewählte Artikel; Rest checken).
-- **E-Mail-Settings — alle drei Teilpunkte** (Entscheid 2026-07-07):
-  1. `emailAccountId` in der Settings-UI vom nackten Zahlenfeld zum
-     **Dropdown mit den Xentral-E-Mail-Konten** machen.
-  2. **Konfigurierbare Mail-Vorlagen** für die Bestätigungsmail
-     (= Paritäts-Punkt PLAN §1a Nr. 6).
-  3. **Grundsatzfrage recherchieren**: ob/wie der E-Mail-Versand pro Projekt
-     konfiguriert sein muss (Konto pro Projekt? Absender? Fallback?).
+- **E-Mail-Settings — alle drei Teilpunkte** (Entscheid 2026-07-07 → ERLEDIGT 2026-07-09):
+  1. ✅ E-Mail-Konto als benannte Auswahl: neue Read-only-Entity `emailAccount`
+     (emailbackup, ohne Credentials), Settings-Feld ist jetzt eine Referenz
+     mit E-Mail-Adresse als Anzeige (statt nackter ID).
+  2. ✅ Konfigurierbare Mail-Vorlagen: Pflichtfeld `confirmationMailTemplate`
+     (businessLetterTemplate Typ Retoure); Portal verschickt über die native
+     Send-Pipeline (Variablen, Beleg-PDF, Protokoll). Standard-Vorlage DE/EN
+     als Factory-States.
+  3. ✅ Recherche: Absender kommt beim nativen Versand aus den
+     Projekt-Dokumenteinstellungen (`projekt.absendeadresse` — muss ein
+     konfiguriertes Konto sein); das Settings-Konto dient nur noch der
+     eingebauten Fallback-Mail.
 - **Auto-Spaltenbreite für das Regelwerk**: Die Retourenbedingungen-Tabelle
   (lineItems-Sektion) soll automatische Spaltenbreiten bekommen —
   UI-Politur im EntityBase-Modul (B3).
