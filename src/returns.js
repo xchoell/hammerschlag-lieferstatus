@@ -237,11 +237,18 @@ export async function loadReturnable(salesOrderId, locale = 'de', settings = nul
   }
 
   // Sprache client-seitig filtern (Server-Filter erwartet Array-Syntax).
+  // Anzuzeigende Gründe: hat die Settings-Zeile eine Auswahl
+  // (visibleReturnReasons), erscheinen NUR diese; leer = alle (Default).
+  const visibleIds = settings?.visibleReturnReasonIds || [];
+  const visible = visibleIds.length
+    ? reasonsRaw.filter((r) => visibleIds.includes(String(r.id)))
+    : reasonsRaw;
+
   // Kundensprache bevorzugt, dann DE, sonst alle (statt leerer Liste).
   const wanted = String(locale).toUpperCase();
-  const inLocale = reasonsRaw.filter((r) => String(r.language || '').toUpperCase() === wanted);
-  const inDe = reasonsRaw.filter((r) => String(r.language || '').toUpperCase() === 'DE');
-  const reasons = (inLocale.length ? inLocale : inDe.length ? inDe : reasonsRaw).map((r) => ({
+  const inLocale = visible.filter((r) => String(r.language || '').toUpperCase() === wanted);
+  const inDe = visible.filter((r) => String(r.language || '').toUpperCase() === 'DE');
+  const reasons = (inLocale.length ? inLocale : inDe.length ? inDe : visible).map((r) => ({
     id: String(r.id),
     designation: r.designation,
   }));

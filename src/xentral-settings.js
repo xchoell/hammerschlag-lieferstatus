@@ -49,6 +49,9 @@ function mapRemote(row) {
     // Zweitfaktor im Kunden-Login (zip|email|customerNumber); Validierung
     // gegen die bekannten Varianten macht currentLoginVariant().
     loginVariant: row.loginVariant || 'zip',
+    // Anzuzeigende Rücksendegründe (leer = alle). Kommt nur mit, weil
+    // fetchRemote include=visibleReturnReasons anfordert.
+    visibleReturnReasonIds: (row.visibleReturnReasons || []).map((r) => String(r.id)),
     // Projekt-Gate fürs Pro-Projekt-Frontend: Aufträge fremder Projekte sind
     // unter diesem Portal nicht auffindbar (Default an).
     restrictToProject: row.shouldRestrictToProjectOrders !== false,
@@ -61,6 +64,8 @@ async function fetchRemote(filterKey, filterValue) {
   url.searchParams.set('filter[0][key]', filterKey);
   url.searchParams.set('filter[0][op]', 'equals');
   url.searchParams.set('filter[0][value]', String(filterValue));
+  // Referenz-Collections liefert die Entity-API nur auf Anforderung mit.
+  url.searchParams.set('include', 'visibleReturnReasons');
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${apiToken()}`, Accept: 'application/json' },
   });
