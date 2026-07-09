@@ -36,11 +36,11 @@ Manifest, Infra-Buy-in, Secrets, Ingress/CNAME · Monitoring: NR-Anbindung
   vgl. Top-25 Nr. 24 Gründe-Reporting) soll über die Xentral-**Analytics-
   Plattform** laufen statt über ein eigenes Portal-Reporting — die Daten
   liegen ja strukturiert in `retoure`/`retoure_position`.
-- **Anzuzeigende Retourengründe definierbar machen**: Im Portal sollen nur
-  ausgewählte Gründe erscheinen. Hebel existiert schon im Datenmodell:
-  `returnReason` hat ein `isHidden`-Flag — prüfen, ob v1 `returnReasons`
-  das respektiert/liefert; sonst Auswahl-Feld (Multi-Select) an unserer
-  Settings-Entity.
+- **Anzuzeigende Retourengründe definierbar** ✅ ERLEDIGT (2026-07-09):
+  Multi-Select „Angezeigte Rücksendegründe" an der Settings-Entity
+  (referencesMany → Pivot; leer = alle Gründe). Portal filtert entsprechend.
+  Nebenprodukt: axiom-framework kann jetzt referencecollection-Includes +
+  useEntityFieldDraft-Hook für selbstverwaltete Custom-Felder.
 - **Mit Fulya besprechen**: Wie verhält sich ein „Nachbau" des
   Retourenportals hier (Produkt-/Design-Sicht, Abgrenzung zum alten Portal)?
 - **Ziel-Versanddienstleister** (Soll-Liste): **DHL Retoure** (✅ via SUP-87)
