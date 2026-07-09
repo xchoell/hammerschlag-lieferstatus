@@ -181,6 +181,14 @@ export async function releaseReturn(id) {
   return xentralWrite('POST', `/api/v1/returns/${id}/actions/release`, undefined);
 }
 
+// Beleg-Mail über Xentrals native Send-Pipeline verschicken (v3-Action).
+// Scope: return:send. Xentral übernimmt Absender (Projekt-Dokumenteinstellungen),
+// Empfänger (Beleg-Adresse), Retourenbeleg-PDF-Anhang und Versand-Protokoll;
+// subject/body kommen als Override aus der gewählten Portal-Vorlage.
+export async function sendReturnOrderMail(id, { subject, body }) {
+  return xentralWrite('PATCH', `/api/v3/returnOrders/${id}/actions/send`, { email: { subject, body } });
+}
+
 // Retourenlabel erzeugen (v3-Action aus SUP-87). Scope: return:generateShippingLabel.
 // Antwort: { fileId, trackingNumber, trackingLink } — fileId ist die Dokument-ID,
 // die getReturnDocument bereits ausliefert.

@@ -370,6 +370,39 @@ Retoure 5 (Steelova 45 kg → Regel „Spedition") = Beleg mit
 `dhlreturn`) = „Versandlabel herunterladen" direkt auf der Bestätigungsseite,
 Download = echtes DHL-Sandbox-PDF (30 KB).
 
+### Bestätigungsmail über Xentrals native Pipeline (umgesetzt + E2E-verifiziert 2026-07-09)
+
+Die Bestätigungsmail nutzt bevorzugt Xentrals **E-Mail-Vorlagen**
+(businessLetterTemplate, Belegtyp `return_order`) statt der eingebauten Texte:
+
+- **Settings-Feld `confirmationMailTemplate`** (Xentral-Entity, Sektion
+  Automatisierung): Pflicht-Referenz auf eine return_order-Vorlage; Validator
+  erzwingt Belegtyp + nicht-leeren Betreff/Text, Leeren ist unmöglich
+  (Xentral-Commit b0c3e99384b; Factory-States returnOrderGerman/English =
+  Standard-Vorlage).
+- **Portal-Ablauf** (confirmation-mail.js): Vorlage per Entity-API laden
+  (Filter `documentType=return_order` — `id` ist kein erlaubter Filter-Key,
+  422!), Variablen selbst ersetzen (`{BELEGNR}`, `{DATUM}`, `{NAME}`,
+  `{ANSCHREIBEN}`, `{FIRMA}` — gleiche Namen wie Xentrals ParseUserVars, damit
+  Vorlagen zwischen UI- und Portal-Versand austauschbar sind), dann
+  `PATCH /api/v3/returnOrders/{id}/actions/send` mit subject/body-Override.
+  Xentral übernimmt Absender (Projekt-`absendeadresse` — muss ein
+  konfiguriertes Konto sein!), Empfänger (Beleg-Adresse),
+  **Retourenbeleg-PDF-Anhang** und das Versand-Protokoll (email_logs +
+  Beleg-Historie). Scopes: `return:send`, `entity:businessLetterTemplate:read`.
+- **Fail-soft-Kette**: keine Vorlage in den Settings / Vorlage nicht ladbar /
+  send-Fehler → die bisherige eingebaute Mail (sendEmailViaAccount +
+  Label-Anhang) bleibt als Fallback vollständig erhalten.
+- Warum Override statt nativer Vorlagen-Wahl: `actions/send` akzeptiert keine
+  Template-ID; die native Auswahl nimmt bei mehreren passenden Vorlagen die
+  erste (Seed-Duplikat gewinnt) — die explizite Auswahl an den Settings macht
+  den Versand deterministisch.
+- Wissenswert: das native `actions/send` hängt NUR den Retourenbeleg an, nie
+  das Label — das Label bekommt der Kunde sofort auf der Bestätigungsseite
+  (Sofort-Label), die Vorlage verweist aufs Portal.
+- E2E: Retoure 2026-500011 → Mail „Deine Retoure 2026-500011" mit ersetzten
+  Variablen + Beleg-PDF, Status sent.
+
 ## Bewusst noch offen (Backlog)
 
 - **Versandart-Regeln (Punkt 1)**: Regel-System im Admin (Kriterium Gewicht/Größe

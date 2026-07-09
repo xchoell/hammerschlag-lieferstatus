@@ -135,6 +135,44 @@ export async function getSettingsBySlug(slug) {
   }
 }
 
+// Bestätigungsmail-Vorlage (businessLetterTemplate) zur ID aus den Settings.
+// Gleiche Entity-API/Credentials wie die Settings (Scope
+// entity:businessLetterTemplate:read), gleicher Cache/TTL. null bei Fehlern —
+// der Aufrufer fällt dann auf die eingebaute Mail zurück.
+export async function getConfirmationMailTemplate(templateId) {
+  const id = Number(templateId) || 0;
+  if (!id || config.useMock || !config.returnsSettingsApi.enabled || !apiBase() || !apiToken()) return null;
+
+  const key = `mailTemplate:${id}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < config.returnsSettingsApi.cacheTtlMs) return hit.value;
+
+  try {
+    // `id` ist an der Entity kein erlaubter Filter-Key (422) — daher nach dem
+    // filterbaren documentType eingrenzen und die ID clientseitig matchen.
+    const url = new URL(apiBase() + '/api/entity/businessLetterTemplate');
+    url.searchParams.set('filter[0][key]', 'documentType');
+    url.searchParams.set('filter[0][op]', 'equals');
+    url.searchParams.set('filter[0][value]', 'return_order');
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${apiToken()}`, Accept: 'application/json' },
+    });
+    if (!res.ok) throw Object.assign(new Error(`Template-API ${res.status}`), { status: res.status });
+    const row = (((await res.json()).data || []).find((r) => String(r.id) === String(id))) || null;
+    const value =
+      row && row.subject && row.body
+        ? { subject: String(row.subject), body: String(row.body), language: row.language || '' }
+        : null;
+    cache.set(key, { at: Date.now(), value });
+    return value;
+  } catch (err) {
+    console.warn(`[settings-sync] Mail-Vorlage ${id} nicht ladbar (${err.status || err.message}).`);
+    const value = hit ? hit.value : null;
+    cache.set(key, { at: Date.now(), value });
+    return value;
+  }
+}
+
 // Für Tests/Diagnose: Cache leeren.
 export function clearSettingsCache() {
   cache.clear();

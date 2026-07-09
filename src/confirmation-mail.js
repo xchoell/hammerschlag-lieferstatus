@@ -1,6 +1,7 @@
 import { t, withLocale } from './i18n.js';
-import { sendEmailViaAccount } from './xentral.js';
+import { sendEmailViaAccount, sendReturnOrderMail, getReturn } from './xentral.js';
 import { fetchReturnDocument } from './returns.js';
+import { getConfirmationMailTemplate } from './xentral-settings.js';
 import { currentBrand } from './portal-context.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55,8 +56,65 @@ function buildBody({ customerName, orderNumber, items, selections, shippingMetho
   ].join('\n');
 }
 
+// Vorlagen-Variablen ersetzen (Teilmenge der nativen Xentral-Platzhalter —
+// dieselben Namen, damit Vorlagen zwischen UI-Versand und Portal austauschbar
+// bleiben). Die Werte hat der Portal-Flow ohnehin.
+function fillTemplate(tpl, vars) {
+  let out = String(tpl);
+  for (const [names, value] of vars) {
+    for (const name of names) {
+      out = out.replaceAll(`{${name}}`, value);
+    }
+  }
+  return out;
+}
+
+// Nativer Weg (bevorzugt): die in den Settings gewählte businessLetterTemplate
+// rendern und über v3 returnOrders/{id}/actions/send verschicken — Absender,
+// Empfänger, Retourenbeleg-PDF und Versand-Protokoll macht Xentral selbst.
+// false = nicht möglich (keine Vorlage/ältere Instanz/Fehler) -> Legacy-Pfad.
+async function sendViaNativePipeline({ settings, locale, data, returnId }) {
+  const templateId = Number(settings?.raw?.confirmationMailTemplate?.id) || 0;
+  if (!templateId) return false;
+
+  try {
+    const template = await getConfirmationMailTemplate(templateId);
+    if (!template) return false;
+
+    const ret = await getReturn(returnId).catch(() => null);
+    const returnNumber = ret?.documentNumber || String(returnId);
+    const dateStr = new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'de-DE', { dateStyle: 'medium' }).format(new Date());
+    const greeting = withLocale(locale, () =>
+      data.customerName ? t('mail.return.greeting', { name: data.customerName }) : t('mail.return.greetingGeneric'),
+    );
+    const vars = [
+      [['BELEGNR', 'RECEIPTNR'], returnNumber],
+      [['DATUM', 'DATE'], dateStr],
+      [['ANSCHREIBEN', 'WRITETO'], greeting],
+      [['NAME'], data.customerName || ''],
+      [['FIRMA'], currentBrand().name],
+    ];
+
+    await sendReturnOrderMail(returnId, {
+      subject: fillTemplate(template.subject, vars),
+      body: fillTemplate(template.body, vars),
+    });
+    console.log(`[mail] Bestätigungsmail für Retoure ${returnId} nativ verschickt (Vorlage ${templateId}).`);
+    return true;
+  } catch (err) {
+    console.warn(
+      `[mail] Nativer Mailversand für Retoure ${returnId} nicht möglich (${err.status || err.message}) – nutze eingebaute Mail.`,
+    );
+    return false;
+  }
+}
+
 // Nie werfen — Aufrufer verlassen sich auf fire-and-forget.
 export async function sendReturnConfirmation({ settings, locale, data, selections, returnId, returnNumber, documents }) {
+  // Bevorzugt die native Xentral-Pipeline mit der Settings-Vorlage; nur wenn
+  // das nicht geht, greift die eingebaute Mail über sendEmailViaAccount.
+  if (await sendViaNativePipeline({ settings, locale, data, returnId })) return true;
+
   const accountId = Number(settings?.raw?.emailAccountId) || 0;
   const to = data.customerEmail;
   if (!accountId || !to) {
