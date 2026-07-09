@@ -115,7 +115,9 @@ export async function sendReturnConfirmation({ settings, locale, data, selection
   // das nicht geht, greift die eingebaute Mail über sendEmailViaAccount.
   if (await sendViaNativePipeline({ settings, locale, data, returnId })) return true;
 
-  const accountId = Number(settings?.raw?.emailAccountId) || 0;
+  // Seit dem EmailAccount-Referenz-Umbau heißt das Feld emailAccount ({id});
+  // emailAccountId bleibt als Fallback für ältere Instanzstände lesbar.
+  const accountId = Number(settings?.raw?.emailAccount?.id ?? settings?.raw?.emailAccountId) || 0;
   const to = data.customerEmail;
   if (!accountId || !to) {
     console.log(`[mail] Bestätigungsmail übersprungen (Konto: ${accountId || '—'}, Empfänger: ${to || '—'})`);
